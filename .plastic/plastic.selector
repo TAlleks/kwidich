@@ -1,0 +1,4 @@
+repository "kwidich/kwidich@10171477380583@cloud"
+  path "/"
+    br "/main"
+    co "/main"
