@@ -142,6 +142,14 @@ MonoBehaviour:
   steeringSensitivity: 2
   liftForce: 10
   hoverHeight: 2
+  verticalAcceleration: 8
+  maxVerticalSpeed: 10
+  heightStabilizationForce: 20
+  currentGear: 1
+  maxGear: 4
+  gearShiftCooldown: 0.5
+  maxHeight: 50
+  minHeight: 1
   broomModel: {fileID: 198365200}
 --- !u!114 &198365198
 MonoBehaviour:
@@ -567,35 +575,35 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 65.2
+      value: 65.198395
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 6.5
+      value: 6.2040167
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 64.8
+      value: 64.5181
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.98872024
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: 0.14977428
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
+      value: 17.228
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0c7cfe7424abe9041baeb97b5a725db1, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
