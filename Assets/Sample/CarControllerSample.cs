@@ -28,8 +28,6 @@ public class CarControllerSample : MonoBehaviour
         {
             speed = -inputControllerReader.Brake;
         }
-        
-        if (inputControllerReader.)
 
         var motor = maxMotorTorque * speed;
         var steering = maxSteeringAngle * inputControllerReader.Steering;
