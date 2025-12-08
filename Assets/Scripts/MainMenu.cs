@@ -1,21 +1,33 @@
+using LogitechG29.Sample.Input;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class MainMenu : MonoBehaviour
 {
-    public GameObject delete;
-    public void Start()
+    [SerializeField] AudioSource audioSource;
+    [SerializeField] private InputControllerReader inputControllerReader;
+
+    private void Update()
     {
-        if (delete != null) delete.SetActive(false);
+        if (inputControllerReader.NorthButton)
+        {
+            PlayButton();
+        }
+        if (inputControllerReader.SouthButton)
+        {
+            ExitButton();
+        }
     }
-    public void StartButton()
+    public void PlayButton()
     {
-        SceneManager.LoadScene("Location");
+        audioSource.Play();
+        SceneManager.LoadScene("QwidSpeed");
     }
 
     public void ExitButton()
     {
+        audioSource.Play();
         Application.Quit();
     }
 }

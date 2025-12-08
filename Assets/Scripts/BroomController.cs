@@ -1,70 +1,73 @@
-using System;
-using System.Collections.Generic;
 using LogitechG29.Sample.Input;
 using UnityEngine;
 
 public class BroomController : MonoBehaviour
 {
+    #region Inspector Fields & Serialized Fields
+
+    [Header("Input")]
     [SerializeField] private InputControllerReader inputControllerReader;
 
     [Header("Broom Physics")]
-    public float maxSpeed = 20f;
-    public float acceleration = 5f;
-    public float steeringSensitivity = 2f;
-    public float liftForce = 15f;
+    public float baseMaxSpeed = 15f;
+    public float acceleration = 8f;
+    public float steeringSensitivity = 3f;
+    public float liftForce = 20f;
     public float hoverHeight = 2f;
-    public float verticalAcceleration = 8f;
-    public float maxVerticalSpeed = 10f;
-    public float heightStabilizationForce = 20f;
+    public float verticalAcceleration = 10f;
+    public float maxVerticalSpeed = 12f;
 
-    [Header("Levitation Settings")]
-    public float levitationFrequency = 1f;
-    public float levitationAmplitude = 0.2f;
-    public float movementLevitationReduction = 0.5f;
-    public float levitationSmoothness = 2f;
+    [Header("Steering")]
+    [SerializeField] private float steeringSpeed = 6f;
 
-    [Header("Gearbox Settings")]
+    [Header("Gearbox - 7 Gears")]
     public int currentGear = 1;
-    public int maxGear = 4;
-    public float gearShiftCooldown = 0.5f;
+    public float gearShiftCooldown = 0.3f;
 
-    [Header("Height Settings")]
-    public float maxHeight = 50f;
-    public float minHeight = 1f;
+    [Header("Team")]
+    public Team team = Team.Player;
 
     [Header("References")]
     public Transform broomModel;
+    public Rigidbody rb;
 
-    private Rigidbody rb;
-    private float currentSpeed;
-    private float currentVerticalSpeed;
-    private bool isGrounded;
+    #endregion
+
+    #region Private Fields
+
+    // Steering
+    private float currentSteeringAngle;
+    private float targetSteeringAngle;
+
+    // Movement & Physics
     private float lastGearShiftTime;
-    private float targetHeight;
-    private bool isHeightLocked = false;
+    private float currentSpeed;
+    private bool isGrounded;
     private float stableHeight;
-    private float levitationTimer;
-    private float currentLevitationOffset;
-    private float targetLevitationOffset;
-    private Vector3 lastPosition;
-    private bool isMoving;
 
-    // Настройки для каждой передачи
-    private readonly Dictionary<int, GearSettings> gearSettings = new Dictionary<int, GearSettings>()
+    // Collision recovery
+    private bool isRecoveringFromCollision;
+    private float collisionRecoveryTimer;
+
+    // Gear System
+    private readonly GearSettings[] gearSettings = new GearSettings[]
     {
-        { 1, new GearSettings { movementType = MovementType.Horizontal, description = "Вперед" } },
-        { 2, new GearSettings { movementType = MovementType.Vertical, description = "Вверх" } },
-        { 3, new GearSettings { movementType = MovementType.Vertical, description = "Вниз" } },
-        { 4, new GearSettings { movementType = MovementType.Horizontal, description = "Назад" } }
+        new GearSettings { type = MovementType.Vertical,   description = "Вверх",       speedMultiplier = 1f },
+        new GearSettings { type = MovementType.Vertical,   description = "Вниз",        speedMultiplier = 1f },
+        new GearSettings { type = MovementType.Horizontal, description = "Медленно",    speedMultiplier = 0.5f },
+        new GearSettings { type = MovementType.Horizontal, description = "Средне",      speedMultiplier = 1.0f },
+        new GearSettings { type = MovementType.Horizontal, description = "Быстро",      speedMultiplier = 1.5f },
+        new GearSettings { type = MovementType.Horizontal, description = "Очень быстро",speedMultiplier = 2.0f },
+        new GearSettings { type = MovementType.Horizontal, description = "Назад",       speedMultiplier = -1.0f }
     };
 
-    void Start()
+    #endregion
+
+    #region Unity Lifecycle Methods
+
+    private void Start()
     {
-        rb = GetComponent<Rigidbody>();
-        currentGear = 1;
-        targetHeight = transform.position.y;
-        stableHeight = transform.position.y;
-        lastPosition = transform.position;
+        InitializeBroom();
     }
 
     void Update()
@@ -72,417 +75,303 @@ public class BroomController : MonoBehaviour
         HandleInput();
         CheckGround();
         HandleGearShifting();
-        UpdateHeightLock();
-        UpdateStableHeight();
-        CheckMovement();
-        UpdateLevitation();
+        UpdateSteering();
+        HandleCollisionRecovery();
     }
 
     void FixedUpdate()
     {
-        ApplyHover();
         ApplyMovement();
-        ApplyVerticalMovement();
-        StabilizeHeight();
-        ApplyLevitation();
+        ApplyHeightControl(); // ← единый контроллер высоты
     }
 
-    private void HandleInput()
+    void OnCollisionEnter(Collision col)
     {
+        HandleCollision(col);
+    }
+
+    #endregion
+
+    #region Initialization & Setup
+
+    private void InitializeBroom()
+    {
+        rb = GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            rb = gameObject.AddComponent<Rigidbody>();
+            Debug.LogWarning("Rigidbody добавлен динамически к " + name);
+        }
+
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.useGravity = false;
+
+        currentGear = 1;
+
+        // Устанавливаем начальную высоту
+        SetInitialHeight();
+        stableHeight = transform.position.y;
+    }
+
+    private void SetInitialHeight()
+    {
+        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 10f))
+        {
+            transform.position = new Vector3(transform.position.x, hit.point.y + hoverHeight, transform.position.z);
+        }
+        else
+        {
+            transform.position = new Vector3(transform.position.x, hoverHeight, transform.position.z);
+        }
+    }
+
+    #endregion
+
+    #region Input Handling
+
+    void HandleInput()
+    {
+        if (inputControllerReader == null)
+        {
+            Debug.LogError("InputControllerReader не назначен на " + name, this);
+            return;
+        }
+
         float steering = inputControllerReader.Steering;
         float throttle = inputControllerReader.Throttle;
         float brake = inputControllerReader.Brake;
 
-        ApplySteering(steering);
-        ApplyThrottle(throttle, brake);
-        HandleSpecialControls();
-    }
+        targetSteeringAngle = steering * 45f;
 
-    private void HandleGearShifting()
-    {
-
-        if (inputControllerReader.Shifter1 &&
-            Time.time - lastGearShiftTime > gearShiftCooldown)
+        if (gearSettings[currentGear].type == MovementType.Horizontal)
         {
-            ShiftGear(1);
-        }
+            float maxSpd = baseMaxSpeed * Mathf.Abs(gearSettings[currentGear].speedMultiplier);
+            float targetSpd = throttle * maxSpd;
 
-        if (inputControllerReader.Shifter2 &&
-     Time.time - lastGearShiftTime > gearShiftCooldown)
-        {
-            ShiftGear(2);
-        }
+            if (brake > 0.1f) targetSpd = 0f;
 
-        if (inputControllerReader.Shifter3 &&
-     Time.time - lastGearShiftTime > gearShiftCooldown)
-        {
-            ShiftGear(3);
-        }
-
-        if (inputControllerReader.Shifter4 &&
-     Time.time - lastGearShiftTime > gearShiftCooldown)
-        {
-            ShiftGear(4);
-        }
-
-    }
-
-    private void CheckMovement()
-    {
-        // Проверяем, движется ли метла
-        Vector3 positionDelta = transform.position - lastPosition;
-        isMoving = positionDelta.magnitude > 0.01f || Mathf.Abs(currentSpeed) > 0.1f;
-        lastPosition = transform.position;
-    }
-
-    private void UpdateLevitation()
-    {
-        // Обновляем таймер левитации
-        levitationTimer += Time.deltaTime * levitationFrequency;
-
-        // Вычисляем целевое смещение левитации
-        float baseLevitation = Mathf.Sin(levitationTimer) * levitationAmplitude;
-
-        // Уменьшаем амплитуду при движении
-        float movementReduction = isMoving ? movementLevitationReduction : 1f;
-        targetLevitationOffset = baseLevitation * movementReduction;
-
-        // Плавно интерполируем к целевому смещению
-        currentLevitationOffset = Mathf.Lerp(currentLevitationOffset, targetLevitationOffset,
-                                           Time.deltaTime * levitationSmoothness);
-    }
-
-    private void ApplyLevitation()
-    {
-        // Применяем левитацию только когда метла не на земле и на горизонтальных передачах
-        if (!isGrounded && (currentGear == 1 || currentGear == 4))
-        {
-            // Добавляем небольшую силу левитации
-            Vector3 levitationForce = Vector3.up * currentLevitationOffset * 2f;
-            rb.AddForce(levitationForce, ForceMode.Acceleration);
+            // Плавное ускорение/торможение
+            currentSpeed = Mathf.Lerp(currentSpeed, targetSpd, acceleration * Time.deltaTime);
         }
     }
 
-    private void ShiftGear(int direction)
+    void HandleGearShifting()
     {
-        int newGear = direction;
-        SetGear(newGear);
+        if (inputControllerReader == null) return;
+
+        bool canShift = (Time.time - lastGearShiftTime) > gearShiftCooldown;
+        bool shiftPressed = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.JoystickButton4);
+
+        if (canShift)
+        {
+            if (inputControllerReader.Shifter1) ShiftGear(1);
+            else if (inputControllerReader.Shifter2) ShiftGear(2);
+            else if (inputControllerReader.Shifter3) ShiftGear(3);
+            else if (inputControllerReader.Shifter4) ShiftGear(4);
+        }
+
+        if (shiftPressed && canShift)
+        {
+            if (inputControllerReader.Shifter1) ShiftGear(5);
+            else if (inputControllerReader.Shifter2) ShiftGear(6);
+            else if (inputControllerReader.Shifter3) ShiftGear(7);
+        }
     }
 
-    private void SetGear(int gear)
+    void ShiftGear(int gear)
     {
-        if (gear >= 1 && gear <= maxGear && gear != currentGear)
+        if (gear >= 1 && gear <= 7 && gear != currentGear)
         {
             currentGear = gear;
             lastGearShiftTime = Time.time;
-            Debug.Log($"Переключение на передачу: {currentGear} - {gearSettings[currentGear].description}");
-
-            // Сброс скорости при переключении передачи
-            currentSpeed = 0f;
-
-            // При переключении на вертикальные передачи фиксируем текущую высоту
-            if (gear == 2 || gear == 3)
-            {
-                LockCurrentHeight();
-            }
-            else
-            {
-                isHeightLocked = false;
-                // При переключении на горизонтальные передачи запоминаем текущую высоту как стабильную
-                stableHeight = transform.position.y;
-            }
-
-            Debug.Log($"Переключение на передачу: {currentGear} - {gearSettings[currentGear].description}");
+            Debug.Log($"[Broom] Передача {currentGear}: {gearSettings[gear - 1].description}", this);
         }
     }
 
-    private void UpdateHeightLock()
+    #endregion
+
+    #region Physics & Movement
+
+    void CheckGround()
     {
-        // Для вертикальных передач обновляем целевую высоту в зависимости от педалей
-        if (currentGear == 2 || currentGear == 3)
+        // Расширяем проверку до 1.5 * hoverHeight — надёжнее
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, hoverHeight * 1.5f);
+    }
+
+    void UpdateSteering()
+    {
+        currentSteeringAngle = Mathf.Lerp(currentSteeringAngle, targetSteeringAngle, steeringSpeed * Time.deltaTime);
+
+        if (gearSettings[currentGear].type == MovementType.Horizontal && !isRecoveringFromCollision)
         {
-            float throttle = inputControllerReader.Throttle;
-            float brake = inputControllerReader.Brake;
-
-            if (currentGear == 2) // Подъем
-            {
-                if (throttle > 0.1f)
-                {
-                    targetHeight += throttle * verticalAcceleration * Time.deltaTime;
-                }
-                if (brake > 0.1f)
-                {
-                    targetHeight -= brake * verticalAcceleration * Time.deltaTime;
-                }
-            }
-            else if (currentGear == 3) // Спуск
-            {
-                if (throttle > 0.1f)
-                {
-                    targetHeight -= throttle * verticalAcceleration * Time.deltaTime;
-                }
-                if (brake > 0.1f)
-                {
-                    targetHeight += brake * verticalAcceleration * Time.deltaTime;
-                }
-            }
-
-            // Ограничиваем высоту
-            targetHeight = Mathf.Clamp(targetHeight, minHeight, maxHeight);
-            stableHeight = targetHeight; // Обновляем стабильную высоту
+            ApplySteeringRotation();
+            ApplyBroomTilt();
         }
     }
 
-    private void UpdateStableHeight()
+    private void ApplySteeringRotation()
     {
-        // На горизонтальных передачах стабильная высота - текущая высота + левитация
-        if (currentGear == 1 || currentGear == 4)
-        {
-            stableHeight = transform.position.y - currentLevitationOffset;
-        }
+        float turn = currentSteeringAngle * steeringSensitivity * Time.deltaTime;
+        // Вращаем в мировом пространстве относительно оси Y
+        transform.Rotate(Vector3.up * turn, Space.World);
     }
 
-    private void LockCurrentHeight()
+    private void ApplyBroomTilt()
     {
-        targetHeight = transform.position.y;
-        stableHeight = targetHeight;
-        isHeightLocked = true;
-    }
-
-    private void ApplySteering(float steeringInput)
-    {
-        // Поворот работает только на горизонтальных передачах
-        if (gearSettings[currentGear].movementType == MovementType.Horizontal)
-        {
-            float turnAmount = steeringInput * steeringSensitivity * Time.deltaTime;
-            transform.Rotate(0, turnAmount, 0);
-        }
-
-        // Наклон метлы с учетом левитации
         if (broomModel != null)
         {
-            float targetTilt = steeringInput * 30f;
+            float tiltZ = -currentSteeringAngle * 0.8f; // крен в поворот
+            float tiltX = Mathf.Sign(currentSpeed) * Mathf.Clamp(Mathf.Abs(currentSpeed) / baseMaxSpeed, 0f, 1f) * 8f; // наклон вперёд/назад
 
-            // Добавляем небольшой наклон от левитации
-            float levitationTilt = Mathf.Sin(levitationTimer * 1.5f) * 5f;
-
-            Quaternion targetRotation = Quaternion.Euler(levitationTilt, 0, -targetTilt);
-            broomModel.localRotation = Quaternion.Lerp(broomModel.localRotation, targetRotation, Time.deltaTime * 5f);
+            Quaternion targetTilt = Quaternion.Euler(tiltX, 0f, tiltZ);
+            broomModel.localRotation = Quaternion.Slerp(broomModel.localRotation, targetTilt, Time.deltaTime * 10f);
         }
     }
 
-    private void ApplyThrottle(float throttle, float brake)
+    void ApplyMovement()
     {
-        // Горизонтальное ускорение только для горизонтальных передач
-        if (gearSettings[currentGear].movementType == MovementType.Horizontal)
-        {
-            float targetSpeed = throttle * maxSpeed;
+        if (gearSettings[currentGear].type != MovementType.Horizontal || isRecoveringFromCollision)
+            return;
 
-            // Торможение работает для всех передач
-            if (brake > 0.1f)
-            {
-                targetSpeed = 0f;
-                currentSpeed = Mathf.Lerp(currentSpeed, targetSpeed, brake * 2f * Time.deltaTime);
-            }
-            else
-            {
-                currentSpeed = Mathf.Lerp(currentSpeed, targetSpeed, acceleration * Time.deltaTime);
-            }
-        }
-        else
-        {
-            // Для вертикальных передач сбрасываем горизонтальную скорость
-            currentSpeed = 0f;
-        }
+        float direction = Mathf.Sign(gearSettings[currentGear].speedMultiplier);
+        Vector3 moveDir = transform.forward * currentSpeed * direction;
+
+        // Сохраняем текущую вертикальную скорость — её контролирует ApplyHeightControl()
+        rb.linearVelocity = new Vector3(moveDir.x, rb.linearVelocity.y, moveDir.z);
     }
 
-    private void ApplyMovement()
+    void ApplyHeightControl()
     {
-        // Горизонтальное движение только для передач 1 и 4
-        if (gearSettings[currentGear].movementType == MovementType.Horizontal)
-        {
-            Vector3 moveDirection = transform.forward * currentSpeed;
+        // 1. Целевая высота
+        float targetY = stableHeight;
 
-            // Определяем направление для передачи 4 (назад)
-            if (currentGear == 4)
+        if (currentGear == 1) // Вверх
+            targetY += verticalAcceleration * Time.fixedDeltaTime;
+        else if (currentGear == 2) // Вниз
+            targetY -= verticalAcceleration * Time.fixedDeltaTime;
+
+        targetY = Mathf.Clamp(targetY, 1f, 50f);
+        stableHeight = targetY;
+
+        // 2. Желаемая вертикальная скорость (П-регулятор)
+        float heightError = targetY - transform.position.y;
+        float desiredVerticalSpeed = Mathf.Clamp(heightError * 6f, -maxVerticalSpeed, maxVerticalSpeed);
+
+        // 3. Плавный переход
+        float currentVertVel = rb.linearVelocity.y;
+        float newVertVel = Mathf.Lerp(currentVertVel, desiredVerticalSpeed, Time.fixedDeltaTime * 8f);
+
+        // 4. "Подушка" при близости к земле
+        if (isGrounded && gearSettings[currentGear].type == MovementType.Horizontal)
+        {
+            if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, hoverHeight * 2f))
             {
-                moveDirection = -moveDirection;
-            }
-
-            // Сохраняем текущую Y-скорость чтобы не терять высоту
-            rb.linearVelocity = new Vector3(moveDirection.x, rb.linearVelocity.y, moveDirection.z);
-        }
-        else
-        {
-            // Для вертикальных передач обнуляем горизонтальную скорость
-            rb.linearVelocity = new Vector3(0, rb.linearVelocity.y, 0);
-        }
-    }
-
-    private void ApplyVerticalMovement()
-    {
-        // Вертикальное движение для передач 2 и 3
-        if (currentGear == 2 || currentGear == 3)
-        {
-            float heightDifference = targetHeight - transform.position.y;
-            float verticalForce = heightDifference * verticalAcceleration;
-
-            // Ограничиваем максимальную вертикальную скорость
-            verticalForce = Mathf.Clamp(verticalForce, -maxVerticalSpeed, maxVerticalSpeed);
-
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, verticalForce, rb.linearVelocity.z);
-        }
-    }
-
-    private void StabilizeHeight()
-    {
-        // Стабилизация высоты для горизонтальных передач
-        if ((currentGear == 1 || currentGear == 4) && !isGrounded)
-        {
-            float heightDifference = stableHeight - transform.position.y;
-            if (Mathf.Abs(heightDifference) > 0.1f)
-            {
-                float stabilizationForce = heightDifference * heightStabilizationForce;
-                rb.AddForce(Vector3.up * stabilizationForce, ForceMode.Acceleration);
+                float cushion = Mathf.Max(0f, 1f - hit.distance / hoverHeight);
+                newVertVel += liftForce * cushion * Time.fixedDeltaTime;
             }
         }
+
+        // 5. Устанавливаем итоговую скорость
+        rb.linearVelocity = new Vector3(rb.linearVelocity.x, newVertVel, rb.linearVelocity.z);
     }
 
-    private void ApplyHover()
+    #endregion
+
+    #region Collision & Recovery
+
+    void HandleCollision(Collision col)
     {
-        // Hover работает только на горизонтальных передачах и когда мы близко к земле
-        if (gearSettings[currentGear].movementType == MovementType.Horizontal && isGrounded)
+        if (col.relativeVelocity.magnitude > 1.5f)
         {
-            RaycastHit hit;
-            if (Physics.Raycast(transform.position, Vector3.down, out hit, hoverHeight * 2f))
-            {
-                float hoverForce = liftForce * (1f - (hit.distance / hoverHeight));
-                rb.AddForce(Vector3.up * hoverForce, ForceMode.Acceleration);
-            }
+            ApplyCollisionResponse(col);
+            StartCollisionRecovery();
         }
     }
 
-    private void HandleSpecialControls()
+    private void ApplyCollisionResponse(Collision col)
     {
-        // Экстренный подъем (работает на любой передаче)
-        if (Input.GetKey(KeyCode.JoystickButton0) || Input.GetKey(KeyCode.Space))
-        {
-            rb.AddForce(Vector3.up * liftForce * 2f, ForceMode.Impulse);
-        }
+        Vector3 impactPoint = rb.worldCenterOfMass;
 
-        // Принудительная фиксация высоты (например, кнопка X)
-        if (Input.GetKeyDown(KeyCode.JoystickButton2) || Input.GetKeyDown(KeyCode.X))
+        // Мягкий отскок вверх + гашение
+        Vector3 bounce = Vector3.up * 3f + (-rb.linearVelocity.normalized) * 1f;
+        rb.AddForceAtPosition(bounce * 2f, impactPoint, ForceMode.Impulse);
+
+        // Демпфирование
+        rb.linearVelocity *= 0.3f;
+        rb.angularVelocity *= 0.1f;
+    }
+
+    private void StartCollisionRecovery()
+    {
+        isRecoveringFromCollision = true;
+        collisionRecoveryTimer = 1f;
+    }
+
+    void HandleCollisionRecovery()
+    {
+        if (isRecoveringFromCollision)
         {
-            LockCurrentHeight();
-            Debug.Log("Высота зафиксирована: " + targetHeight);
+            collisionRecoveryTimer -= Time.deltaTime;
+            if (collisionRecoveryTimer <= 0f)
+                isRecoveringFromCollision = false;
         }
     }
 
-    private void CheckGround()
-    {
-        RaycastHit hit;
-        isGrounded = Physics.Raycast(transform.position, Vector3.down, out hit, hoverHeight + 0.2f);
-    }
+    #endregion
 
-    // Вспомогательные классы и enum
+    #region Helper Classes & Enums
+
     [System.Serializable]
     public class GearSettings
     {
-        public MovementType movementType;
+        public MovementType type;
         public string description;
+        public float speedMultiplier = 1f;
     }
 
-    public enum MovementType
+    public enum MovementType { Horizontal, Vertical }
+
+    #endregion
+
+    #region Public Methods
+
+    public void ResetBroom()
     {
-        Horizontal,
-        Vertical
+        currentGear = 1;
+        currentSpeed = 0f;
+        isRecoveringFromCollision = false;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        SetInitialHeight();
+        stableHeight = transform.position.y;
     }
 
-    public float GetCurrentSpeed()
+    public void BoostSpeed(float multiplier, float duration)
     {
-        return currentSpeed;
+        StartCoroutine(SpeedBoostRoutine(multiplier, duration));
     }
 
-    public bool IsGrounded()
+    private System.Collections.IEnumerator SpeedBoostRoutine(float multiplier, float duration)
     {
-        return isGrounded;
+        float originalSpeed = baseMaxSpeed;
+        baseMaxSpeed *= multiplier;
+        Debug.Log($"[Broom] Буст скорости ×{multiplier} на {duration} сек", this);
+
+        yield return new WaitForSeconds(duration);
+
+        baseMaxSpeed = originalSpeed;
+        Debug.Log("[Broom] Буст окончен", this);
     }
 
-    public int GetCurrentGear()
+    public void SetInputController(InputControllerReader controller)
     {
-        return currentGear;
+        inputControllerReader = controller;
     }
 
-    public string GetGearDescription()
-    {
-        return gearSettings.ContainsKey(currentGear) ? gearSettings[currentGear].description : "Unknown";
-    }
+    public float GetCurrentSpeed() => currentSpeed;
+    public int GetCurrentGear() => currentGear;
 
-    public float GetCurrentHeight()
-    {
-        return transform.position.y;
-    }
-
-    public float GetTargetHeight()
-    {
-        return targetHeight;
-    }
-
-    public bool IsMoving()
-    {
-        return isMoving;
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        // Визуализация hover высоты
-        Gizmos.color = Color.green;
-        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * hoverHeight);
-
-        // Визуализация целевой высоты для вертикальных передач
-        if (currentGear == 2 || currentGear == 3)
-        {
-            Gizmos.color = Color.blue;
-            Gizmos.DrawLine(new Vector3(transform.position.x - 1f, targetHeight, transform.position.z),
-                           new Vector3(transform.position.x + 1f, targetHeight, transform.position.z));
-        }
-
-        // Визуализация стабильной высоты для горизонтальных передач
-        if (currentGear == 1 || currentGear == 4)
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawLine(new Vector3(transform.position.x - 1f, stableHeight, transform.position.z),
-                           new Vector3(transform.position.x + 1f, stableHeight, transform.position.z));
-        }
-
-        // Визуализация левитации
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawLine(transform.position, transform.position + Vector3.up * currentLevitationOffset);
-
-        // Визуализация направления движения
-        Gizmos.color = Color.red;
-        if (gearSettings.ContainsKey(currentGear) && gearSettings[currentGear].movementType == MovementType.Horizontal)
-        {
-            Vector3 direction = currentGear == 1 ? transform.forward : -transform.forward;
-            Gizmos.DrawLine(transform.position, transform.position + direction * 2f);
-        }
-
-        // Отображение текущей передачи и высоты
-        GUIStyle style = new GUIStyle();
-        style.normal.textColor = Color.white;
-#if UNITY_EDITOR
-        string info = $"Gear: {currentGear} - {GetGearDescription()}\nHeight: {transform.position.y:F1}";
-        if (currentGear == 2 || currentGear == 3)
-        {
-            info += $"\nTarget: {targetHeight:F1}";
-        }
-        else
-        {
-            info += $"\nStable: {stableHeight:F1}";
-        }
-        info += $"\nLevitation: {currentLevitationOffset:F2}";
-        info += $"\nMoving: {isMoving}";
-        UnityEditor.Handles.Label(transform.position + Vector3.up * 3f, info, style);
-#endif
-    }
+    #endregion
 }
