@@ -44,6 +44,7 @@ public class BroomController : MonoBehaviour
     private float currentSpeed;
     private bool isGrounded;
     private float stableHeight;
+    private Vector3 flightDirection;
 
     // Collision recovery
     private bool isRecoveringFromCollision;
@@ -108,6 +109,7 @@ public class BroomController : MonoBehaviour
         rb.useGravity = false;
 
         currentGear = 0;
+        flightDirection = transform.forward;
 
         // Устанавливаем начальную высоту
         SetInitialHeight();
@@ -200,16 +202,8 @@ public class BroomController : MonoBehaviour
 
         if (gearSettings[currentGear].type == MovementType.Horizontal && !isRecoveringFromCollision)
         {
-            ApplySteeringRotation();
             ApplyBroomTilt();
         }
-    }
-
-    private void ApplySteeringRotation()
-    {
-        float turn = currentSteeringAngle * steeringSensitivity * Time.deltaTime;
-        // Вращаем в мировом пространстве относительно оси Y
-        transform.Rotate(Vector3.up * turn, Space.World);
     }
 
     private void ApplyBroomTilt()
@@ -229,12 +223,31 @@ public class BroomController : MonoBehaviour
         if (gearSettings[currentGear].type != MovementType.Horizontal || isRecoveringFromCollision)
             return;
 
-        float direction = Mathf.Sign(gearSettings[currentGear].speedMultiplier);
-        Vector3 moveDir = transform.forward * currentSpeed * direction;
+        if (currentSpeed < 0.01f)
+            return;
 
-        // Сохраняем текущую вертикальную скорость — её контролирует ApplyHeightControl()
-        rb.linearVelocity = new Vector3(moveDir.x, rb.linearVelocity.y, moveDir.z);
+        float direction = Mathf.Sign(gearSettings[currentGear].speedMultiplier);
+
+        // 1. ПОВОРОТ НАПРАВЛЕНИЯ (а не transform)
+        float turnRate = currentSteeringAngle * steeringSensitivity * Time.fixedDeltaTime;
+        Quaternion turnRot = Quaternion.Euler(0f, turnRate, 0f);
+        flightDirection = turnRot * flightDirection;
+        flightDirection.Normalize();
+
+        // 2. ЗАДАЁМ СКОРОСТЬ
+        Vector3 velocity = flightDirection * currentSpeed * direction;
+        rb.linearVelocity = new Vector3(
+            velocity.x,
+            rb.linearVelocity.y,
+            velocity.z
+        );
+
+        // 3. ПОВОРАЧИВАЕМ МЕТЛУ В НАПРАВЛЕНИЕ ПОЛЁТА
+        Quaternion targetRot = Quaternion.LookRotation(flightDirection, Vector3.up);
+        rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRot, Time.fixedDeltaTime * 6f));
     }
+
+
 
     void ApplyHeightControl()
     {
