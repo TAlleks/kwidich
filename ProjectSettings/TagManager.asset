@@ -5,11 +5,14 @@ TagManager:
   serializedVersion: 3
   tags:
   - quaffle
+  - Quaffle
+  - Enemy
+  - Ring
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Player
   - Water
   - UI
   - 

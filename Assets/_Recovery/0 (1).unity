@@ -328,7 +328,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &84037221
 Transform:
   m_ObjectHideFlags: 0
@@ -1976,7 +1976,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &708388272
 Transform:
   m_ObjectHideFlags: 0
@@ -4188,7 +4188,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1752434603
 Transform:
   m_ObjectHideFlags: 0
@@ -5002,7 +5002,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &2115188865
 Transform:
   m_ObjectHideFlags: 0
@@ -21644,7 +21644,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &8500740712275406020
 Transform:
   m_ObjectHideFlags: 0
@@ -22103,7 +22103,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cbb918b0fe6761446b31c71e6b5cec01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QuaffleController
-  throwForce: 25
+  throwForce: 15
   hoverHeight: 1
   groundLayer:
     serializedVersion: 2

@@ -1,220 +1,111 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
-[RequireComponent(typeof(Rigidbody), typeof(Collider))]
-public class QuaffleController : MonoBehaviour
+public class Quaffle : MonoBehaviour
 {
-    #region Inspector Fields
+    [Header("Settings")]
+    public float throwForce = 15f;
+    public float hoverHeight = 1f;
+    public LayerMask groundLayer;
 
-    [Header("Physics")]
-    [SerializeField] private float throwForce = 12f;          // Сила броска (импульс)
-    [SerializeField] private float maxSpeed = 18f;             // Макс. скорость после броска
-    [SerializeField] private float linearDamping = 0.8f;       // Затухание линейной скорости (аналог drag)
-    [SerializeField] private float angularDamping = 2f;        // Затухание вращения (аналог angularDrag)
-
-    [Header("Pickup & Throw")]
-    [SerializeField] private LayerMask playerLayer;           // Слой игрока (например, "Player")
-    [SerializeField] private float throwRaycastDistance = 15f; // Дальность луча для направления
-
-    [Header("Visual & Audio")]
-    [SerializeField] private ParticleSystem pickupEffect;
-    [SerializeField] private AudioClip pickupSound;
-    [SerializeField] private AudioClip throwSound;
-    [SerializeField] private AudioSource audioSource;
-
-    #endregion
-
-    #region Private Fields
+    [Header("State")]
+    public bool isHeld = false;
+    public Transform holder = null;
 
     private Rigidbody rb;
-    private bool isHeld;
-    private Transform holder;
+    private Vector3 startPos;
+    private Quaternion startRot;
 
-    #endregion
-
-    #region Unity Lifecycle
-
-    private void Awake()
+    void Awake()
     {
         rb = GetComponent<Rigidbody>();
-        Collider collider = GetComponent<Collider>();
         rb.useGravity = false;
-        rb.linearDamping = linearDamping;
-        rb.angularDamping = angularDamping;
-
-        // Убеждаемся, что коллайдер — триггер
-        if (collider != null && !collider.isTrigger)
-        {
-            Debug.LogWarning($"[Quaffle] Collider не был триггером — исправлено.", this);
-            collider.isTrigger = true;
-        }
-
-        // Инициализация AudioSource
-        if (audioSource == null)
-            audioSource = GetComponent<AudioSource>();
-        if (audioSource == null)
-            audioSource = gameObject.AddComponent<AudioSource>();
-
-        ResetState();
+        rb.linearDamping = 1f;
+        rb.angularDamping = 2f;
+        startPos = transform.position;
+        startRot = transform.rotation;
     }
 
-    private void Update()
+    void Update()
     {
-        // Бросок по нажатию (Fire1 = ЛКМ, R2, A)
-        if (isHeld && Input.GetButtonDown("Fire1"))
-        {
-            ThrowQuaffle();
-        }
-
         if (isHeld && holder != null)
         {
-            Vector3 holdOffset = holder.forward * 1.1f + holder.up * 0.4f + holder.right * 0.2f;
-            transform.position = Vector3.Lerp(transform.position, holder.position + holdOffset, Time.deltaTime * 12f);
-            transform.rotation = Quaternion.Lerp(transform.rotation, holder.rotation, Time.deltaTime * 10f);
-        }
-    }
-
-    private void FixedUpdate()
-    {
-        // Ограничение скорости полёта (только когда НЕ в руках)
-        if (!isHeld)
-        {
-            if (rb.linearVelocity.magnitude > maxSpeed)
-            {
-                rb.linearVelocity = rb.linearVelocity.normalized * maxSpeed;
-            }
+            // Р”РµСЂР¶РёРј РїРµСЂРµРґ РёРіСЂРѕРєРѕРј, РїР»Р°РІРЅРѕ СЃР»РµРґСѓРµРј Р·Р° РЅРёРј
+            Vector3 offset = holder.forward * 1.2f + holder.up * 0.5f;
+            transform.position = Vector3.Lerp(transform.position, holder.position + offset, Time.deltaTime * 15f);
+            transform.rotation = Quaternion.Lerp(transform.rotation, holder.rotation, Time.deltaTime * 15f);
         }
         else
         {
-            // Полная остановка физики, когда в руках
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
+            HoverAboveGround();
         }
     }
 
-    #endregion
-
-    #region Pickup Logic
-
-    private void OnTriggerEnter(Collider other)
+    private void HoverAboveGround()
     {
-        // Проверка по слою ИЛИ по наличию BroomController + правильной команды
-        if (((1 << other.gameObject.layer) & playerLayer.value) != 0)
+        // Р•СЃР»Рё РјСЏС‡ РїСЂРѕСЃС‚Рѕ РІР°Р»СЏРµС‚СЃСЏ, РѕРЅ РґРѕР»Р¶РµРЅ РІРёСЃРµС‚СЊ РЅР°Рґ Р·РµРјР»РµР№
+        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, hoverHeight + 2f, groundLayer))
         {
-            BroomController broom = other.attachedRigidbody?.GetComponent<BroomController>()
-                                 ?? other.GetComponentInParent<BroomController>();
-
-            if (broom != null && broom.team == Team.Player)
-            {
-                Pickup(broom.transform);
-            }
+            float targetY = hit.point.y + hoverHeight;
+            float error = targetY - transform.position.y;
+            // РџСЂСѓР¶РёРЅРёРј РІРІРµСЂС…
+            rb.linearVelocity += Vector3.up * error * 5f * Time.deltaTime;
         }
     }
 
-    private void Pickup(Transform newHolder)
+    public void Pickup(Transform newHolder)
     {
-        if (isHeld) return;
+        if (isHeld) return; // РЈР¶Рµ Сѓ РєРѕРіРѕ-С‚Рѕ РІ СЂСѓРєР°С…
 
         isHeld = true;
         holder = newHolder;
-
-        // Визуальные/звуковые эффекты
-        if (pickupEffect != null)
-        {
-            var ps = Instantiate(pickupEffect, transform.position, Quaternion.identity);
-            Destroy(ps.gameObject, ps.main.duration + 0.2f);
-        }
-
-        if (pickupSound != null)
-        {
-            audioSource.PlayOneShot(pickupSound);
-        }
-
-        Debug.Log("[Quaffle] Подобран игроком", this);
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true; // РћС‚РєР»СЋС‡Р°РµРј С„РёР·РёРєСѓ, С‡С‚РѕР±С‹ РЅРµ С‚РѕР»РєР°Р» РёРіСЂРѕРєР°
     }
 
-    #endregion
-
-    #region Throw Logic
-
-    private void ThrowQuaffle()
+    public void Throw(Vector3 direction)
     {
-        if (!isHeld || holder == null) return;
-
-        // Определяем направление: базовое — вперёд от игрока
-        Vector3 direction = holder.forward;
-
-        // Уточняем через Raycast (если хочется "умного" броска в цель)
-        Vector3 rayOrigin = holder.position + holder.up * 0.8f;
-        if (Physics.Raycast(rayOrigin, holder.forward, out RaycastHit hit, throwRaycastDistance))
-        {
-            // Если попали в "игровой" объект (не в небо/пустоту) — корректируем
-            if (hit.collider.CompareTag("Ring") || hit.collider.CompareTag("Goal") || hit.collider.CompareTag("Enemy"))
-            {
-                Vector3 toTarget = (hit.point - transform.position).normalized;
-                if (Vector3.Angle(holder.forward, toTarget) < 40f)
-                {
-                    direction = toTarget;
-                }
-            }
-        }
-
-        // Освобождаем
         isHeld = false;
         holder = null;
+        rb.isKinematic = false;
+        rb.useGravity = true;
 
-        // Применяем импульс
+        // Р”РѕР±Р°РІР»СЏРµРј РёРјРїСѓР»СЊСЃ Р±СЂРѕСЃРєР°
         rb.AddForce(direction * throwForce, ForceMode.Impulse);
-
-        // Звук
-        if (throwSound != null)
-        {
-            audioSource.PlayOneShot(throwSound);
-        }
-
-        Debug.Log($"[Quaffle] Брошен со скоростью ~{throwForce} в направлении {direction}", this);
     }
 
-    #endregion
-
-    #region Reset & Utilities
-
-    private void ResetState()
+    public void Respawn()
     {
         isHeld = false;
         holder = null;
+        rb.isKinematic = false;
+        rb.useGravity = false;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
+        transform.SetPositionAndRotation(startPos, startRot);
     }
 
-    private void OnDisable()
+    void OnTriggerEnter(Collider other)
     {
-        ResetState();
-    }
-
-    #endregion
-
-    #region Public Interface
-
-    public bool IsHeld() => isHeld;
-    public Transform GetHolder() => holder;
-
-    public void ForceDrop()
-    {
-        if (isHeld)
+        Debug.Log("РњСЏС‡Р° РєРѕСЃРЅСѓР»РёСЃСЊ");
+        if (isHeld) return;
+        Debug.Log("РњСЏС‡Р° РєРѕСЃРЅСѓР»РёСЃСЊ");
+        // РџСЂРѕРІРµСЂСЏРµРј, СЌС‚Рѕ РРіСЂРѕРє (BroomController)?
+        BroomController broom = other.GetComponentInParent<BroomController>();
+        if (broom != null)
         {
-            isHeld = false;
-            holder = null;
-            rb.AddForce(Vector3.up * 3f + transform.forward * 2f, ForceMode.Impulse);
+            Debug.Log("РџРѕРґРѕР±СЂР°Р»");
+            Pickup(broom.transform);
+            return;
+        }
+
+        // РџСЂРѕРІРµСЂСЏРµРј, СЌС‚Рѕ Р‘РѕС‚ (AIPlayer)?
+        AIPlayer ai = other.GetComponentInParent<AIPlayer>();
+        if (ai != null && !ai.hasBall)  // Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ РїСЂРѕРІРµСЂСЏРµРј, С‡С‚Рѕ Р±РѕС‚ РЅРµ РґРµСЂР¶РёС‚ РјСЏС‡
+        {
+            Pickup(ai.transform);
+            ai.SetHasBall(true, this);  // РџРµСЂРµРґР°РµРј СЃСЃС‹Р»РєСѓ РЅР° СЃРµР±СЏ, С‡С‚РѕР±С‹ Р±РѕС‚ Р·РЅР°Р», Р§РўРћ РѕРЅ РґРµСЂР¶РёС‚
         }
     }
 
-    public void Respawn(Vector3 position, Quaternion rotation)
-    {
-        ResetState();
-        transform.SetPositionAndRotation(position, rotation);
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-    }
-
-    #endregion
 }

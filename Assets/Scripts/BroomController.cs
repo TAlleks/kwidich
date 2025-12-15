@@ -21,7 +21,7 @@ public class BroomController : MonoBehaviour
     [SerializeField] private float steeringSpeed = 6f;
 
     [Header("Gearbox - 7 Gears")]
-    public int currentGear = 1;
+    public int currentGear = 0;
     public float gearShiftCooldown = 0.3f;
 
     [Header("Team")]
@@ -107,7 +107,7 @@ public class BroomController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.useGravity = false;
 
-        currentGear = 1;
+        currentGear = 0;
 
         // Устанавливаем начальную высоту
         SetInitialHeight();
@@ -165,27 +165,22 @@ public class BroomController : MonoBehaviour
 
         if (canShift)
         {
-            if (inputControllerReader.Shifter1) ShiftGear(1);
-            else if (inputControllerReader.Shifter2) ShiftGear(2);
-            else if (inputControllerReader.Shifter3) ShiftGear(3);
-            else if (inputControllerReader.Shifter4) ShiftGear(4);
-        }
-
-        if (shiftPressed && canShift)
-        {
-            if (inputControllerReader.Shifter1) ShiftGear(5);
-            else if (inputControllerReader.Shifter2) ShiftGear(6);
-            else if (inputControllerReader.Shifter3) ShiftGear(7);
+            if (inputControllerReader.Shifter1) ShiftGear(0);
+            else if (inputControllerReader.Shifter2) ShiftGear(1);
+            else if (inputControllerReader.Shifter3) ShiftGear(2);
+            else if (inputControllerReader.Shifter4) ShiftGear(3);
+            else if (inputControllerReader.Shifter5) ShiftGear(4);
+            else if (inputControllerReader.Shifter6) ShiftGear(5);
+            else if (inputControllerReader.Shifter7) ShiftGear(6);
         }
     }
 
     void ShiftGear(int gear)
     {
-        if (gear >= 1 && gear <= 7 && gear != currentGear)
+        if (gear >= 0 && gear <= 6 && gear != currentGear)
         {
             currentGear = gear;
-            lastGearShiftTime = Time.time;
-            Debug.Log($"[Broom] Передача {currentGear}: {gearSettings[gear - 1].description}", this);
+            Debug.Log($"[Broom] Передача {currentGear}: {gearSettings[gear].description}", this);
         }
     }
 
@@ -246,9 +241,9 @@ public class BroomController : MonoBehaviour
         // 1. Целевая высота
         float targetY = stableHeight;
 
-        if (currentGear == 1) // Вверх
+        if (currentGear == 0) // Вверх
             targetY += verticalAcceleration * Time.fixedDeltaTime;
-        else if (currentGear == 2) // Вниз
+        else if (currentGear == 1) // Вниз
             targetY -= verticalAcceleration * Time.fixedDeltaTime;
 
         targetY = Mathf.Clamp(targetY, 1f, 50f);
@@ -338,7 +333,7 @@ public class BroomController : MonoBehaviour
 
     public void ResetBroom()
     {
-        currentGear = 1;
+        currentGear = 0;
         currentSpeed = 0f;
         isRecoveringFromCollision = false;
         rb.linearVelocity = Vector3.zero;

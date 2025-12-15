@@ -280,6 +280,17 @@
                 },
                 {
                     "name": "",
+                    "id": "2cb7ebea-0082-4a91-8ff9-aa16490dcc4b",
+                    "path": "<Keyboard>/a",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Right Bumper",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "cf8c79ef-8c04-4567-8a69-3d3a772aa783",
                     "path": "<Logitech G29 Racing Wheel>/rightStickButton",
                     "interactions": "",
