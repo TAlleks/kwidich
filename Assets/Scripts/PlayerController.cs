@@ -59,6 +59,7 @@ public class AIPlayer : MonoBehaviour
     void Update()
     {
         RotateModel();
+
     }
 
     void FixedUpdate()

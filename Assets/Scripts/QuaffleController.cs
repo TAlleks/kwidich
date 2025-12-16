@@ -96,6 +96,7 @@ public class Quaffle : MonoBehaviour
         {
             Debug.Log("Подобрал");
             Pickup(broom.transform);
+            rb.mass = 0;
             return;
         }
 
@@ -104,6 +105,7 @@ public class Quaffle : MonoBehaviour
         if (ai != null && !ai.hasBall)  // Дополнительно проверяем, что бот не держит мяч
         {
             Pickup(ai.transform);
+            rb.mass = 1;
             ai.SetHasBall(true, this);  // Передаем ссылку на себя, чтобы бот знал, ЧТО он держит
         }
     }
