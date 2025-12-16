@@ -658,6 +658,17 @@ public partial class @InputController: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
+                    ""id"": ""4dc4131c-46b1-4a12-bf3b-73c867aa36ff"",
+                    ""path"": ""<Keyboard>/f"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Clutch"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
                     ""id"": ""2a00d829-94e4-42aa-87e2-fef9c1a28a2f"",
                     ""path"": ""<Logitech G29 Racing Wheel>/brakeAxis"",
                     ""interactions"": """",

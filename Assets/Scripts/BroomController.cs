@@ -30,7 +30,7 @@ public class BroomController : MonoBehaviour
     [Header("References")]
     public Transform broomModel;
     public Rigidbody rb;
-
+    private Camera _mainCamera;
     #endregion
 
     #region Private Fields
@@ -45,6 +45,7 @@ public class BroomController : MonoBehaviour
     private bool isGrounded;
     private float stableHeight;
     private Vector3 flightDirection;
+    public Quaffle quaffle;
 
     // Collision recovery
     private bool isRecoveringFromCollision;
@@ -69,6 +70,7 @@ public class BroomController : MonoBehaviour
     private void Start()
     {
         InitializeBroom();
+        _mainCamera = Camera.main;
     }
 
     void Update()
@@ -78,6 +80,7 @@ public class BroomController : MonoBehaviour
         HandleGearShifting();
         UpdateSteering();
         HandleCollisionRecovery();
+        ThrowBallInput();
     }
 
     void FixedUpdate()
@@ -163,7 +166,7 @@ public class BroomController : MonoBehaviour
         if (inputControllerReader == null) return;
 
         bool canShift = (Time.time - lastGearShiftTime) > gearShiftCooldown;
-        bool shiftPressed = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.JoystickButton4);
+        //bool shiftPressed = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.JoystickButton4);
 
         if (canShift)
         {
@@ -185,6 +188,50 @@ public class BroomController : MonoBehaviour
             Debug.Log($"[Broom] Передача {currentGear}: {gearSettings[gear].description}", this);
         }
     }
+    void ThrowBallInput()
+    {
+        if (inputControllerReader == null) return;
+
+        // Бросок по нажатию сцепления (Clutch >= 0.8f)
+        if (inputControllerReader.Clutch >= 0.8f && quaffle != null && quaffle.isHeld)
+        {
+            ThrowBall();
+        }
+    }
+
+    void ThrowBall()
+    {
+        if (quaffle == null || !quaffle.isHeld) return;
+
+        // === ОПРЕДЕЛЯЕМ НАПРАВЛЕНИЕ БРОСКА ===
+        Vector3 throwDirection;
+
+        if (_mainCamera != null)
+        {
+            // Бросок туда, куда смотрит камера (как в шутерах)
+            throwDirection = _mainCamera.transform.forward;
+        }
+        else
+        {
+            // Если камеры нет — бросаем вперёд по направлению полёта
+            throwDirection = flightDirection;
+        }
+
+        // Убираем вертикальную компоненту, если хотите "горизонтальный" бросок
+        // throwDirection.y = 0f;
+
+        // Нормализуем и добавляем лёгкий подъём (как в квиддиче)
+        throwDirection = throwDirection.normalized;
+        throwDirection.y = Mathf.Max(throwDirection.y, 0.1f); // минимальный подъём
+
+        // Передаём направление в общий метод броска
+        quaffle.Throw(throwDirection);
+        Debug.Log("Бросил мяч");
+
+        // Опционально: сброс ссылки на мяч у игрока
+        quaffle = null;
+    }
+
 
     #endregion
 

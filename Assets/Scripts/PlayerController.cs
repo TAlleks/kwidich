@@ -129,13 +129,19 @@ public class AIPlayer : MonoBehaviour
 
     void RotateModel()
     {
-        if (model == null) return;
 
-        if (rb.linearVelocity.magnitude > 0.1f)
+        // Поворачиваем питомца на камеру при появлении
+        if (currentTarget != null)
         {
-            Quaternion targetRot = Quaternion.LookRotation(rb.linearVelocity);
-            model.rotation = Quaternion.Slerp(model.rotation, targetRot, Time.deltaTime * turnSpeed);
+            Vector3 lookDirection = currentTarget.transform.position  - transform.position;
+            //lookDirection.y = 0f; // убираем наклон по вертикали
+
+            if (lookDirection != Vector3.zero)
+            {
+                transform.rotation = Quaternion.LookRotation(lookDirection);
+            }
         }
+
     }
 
     void CheckActions()

@@ -40,14 +40,15 @@ public class GameScoreManager : MonoBehaviour
     // Вызывается из GoalRing или другого скрипта
     public void AddGoal(Team team)
     {
+
         if (team == Team.Player)
         {
-            playerScore++;
+            playerScore += 1;
             Debug.Log($"[Счёт] Игрок забил! Счёт: {playerScore} - {enemyScore}");
         }
         else
         {
-            enemyScore++;
+            enemyScore += 1;
             Debug.Log($"[Счёт] Противник забил! Счёт: {playerScore} - {enemyScore}");
         }
 
@@ -58,7 +59,7 @@ public class GameScoreManager : MonoBehaviour
     private void UpdateScoreUI()
     {
         if (playerScoreText != null)
-            playerScoreText.text = "Your " + (playerScore/2f).ToString() + " : " + (enemyScore / 2f).ToString() + " Enemy";
+            playerScoreText.text = "Your " + (playerScore).ToString() + " : " + (enemyScore).ToString() + " Enemy";
     }
 
     private void CheckGameOver()
