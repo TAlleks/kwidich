@@ -328,7 +328,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &84037221
 Transform:
   m_ObjectHideFlags: 0
@@ -688,6 +688,7 @@ MonoBehaviour:
   team: 0
   broomModel: {fileID: 137422759}
   rb: {fileID: 198365199}
+  quaffle: {fileID: 8649975352249936199}
 --- !u!114 &198365198
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1863,7 +1864,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &708388272
 Transform:
   m_ObjectHideFlags: 0
@@ -3994,7 +3995,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1752434603
 Transform:
   m_ObjectHideFlags: 0
@@ -4808,7 +4809,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2115188865
 Transform:
   m_ObjectHideFlags: 0
@@ -21383,7 +21384,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &8500740712275406020
 Transform:
   m_ObjectHideFlags: 0
