@@ -976,7 +976,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   vehicleTransform: {fileID: 543450652473121241}
-  rigidbody: {fileID: 198365199}
+  rb: {fileID: 198365199}
+  enableHaptics: 1
+  debugHaptics: 0
+  accelThreshold: 4.5
+  lateralThreshold: 2.5
+  collisionIntensityScale: 3.6
 --- !u!54 &198365199
 Rigidbody:
   m_ObjectHideFlags: 0

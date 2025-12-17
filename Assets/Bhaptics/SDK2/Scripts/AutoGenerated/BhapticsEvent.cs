@@ -17,8 +17,16 @@ namespace Bhaptics.SDK2
     public class BhapticsEvent
     {
         
-        public const string RIGHTHAND = "righthand";
+        public const string RIGHTHAND1 = "righthand1";
         
         public const string FRONT_HIT = "front_hit";
+        
+        public const string DAVLENIE_OT_USCARENIA = "davlenie_ot_uscarenia";
+        
+        public const string LEFT_POVOROT = "left_povorot";
+        
+        public const string RIGHT_POVOROT = "right_povorot";
+        
+        public const string STOLCNOVENIA = "stolcnovenia";
     }
 }
