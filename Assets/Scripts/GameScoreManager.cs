@@ -44,12 +44,12 @@ public class GameScoreManager : MonoBehaviour
         if (team == Team.Player)
         {
             playerScore += 1;
-            Debug.Log($"[Счёт] Игрок забил! Счёт: {playerScore} - {enemyScore}");
+            //Debug.Log($"[Счёт] Игрок забил! Счёт: {playerScore} - {enemyScore}");
         }
         else
         {
             enemyScore += 1;
-            Debug.Log($"[Счёт] Противник забил! Счёт: {playerScore} - {enemyScore}");
+            //Debug.Log($"[Счёт] Противник забил! Счёт: {playerScore} - {enemyScore}");
         }
 
         UpdateScoreUI();
@@ -66,12 +66,12 @@ public class GameScoreManager : MonoBehaviour
     {
         if (playerScore >= maxScore)
         {
-            Debug.Log("Игрок выиграл!");
+            //Debug.Log("Игрок выиграл!");
             SceneManager.LoadScene(winSceneName);
         }
         else if (enemyScore >= maxScore)
         {
-            Debug.Log("Противник выиграл!");
+            //Debug.Log("Противник выиграл!");
             SceneManager.LoadScene(loseSceneName);
         }
     }

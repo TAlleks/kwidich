@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using System.Collections.Generic;
 
 [RequireComponent(typeof(Rigidbody))]
 public class AIPlayer : MonoBehaviour
@@ -54,7 +53,7 @@ public class AIPlayer : MonoBehaviour
     void Start()
     {
         allGoals = FindObjectsByType<GoalRing>(FindObjectsSortMode.None);
-        Log("Инициализирован");
+        //Log("Инициализирован");
     }
 
     void Update()
@@ -75,26 +74,26 @@ public class AIPlayer : MonoBehaviour
         if (hasBall)
         {
             currentTarget = FindBestGoal();
-            Log("Есть мяч → лечу к воротам");
+            //Log("Есть мяч → лечу к воротам");
             return;
         }
 
         if (Time.time >= lastThrowTime + pickupCooldown)
         {
             currentTarget = FindNearestFreeQuaffle();
-            if (currentTarget != null)
-                Log("Ищу свободный мяч");
+            //if (currentTarget != null)
+            //    Log("Ищу свободный мяч");
         }
         else
         {
-            Log("Кулдаун подбора — игнорирую мячи");
+            //Log("Кулдаун подбора — игнорирую мячи");
         }
 
         if (currentTarget != null) return;
 
         currentTarget = FindNearestBotWithBall();
-        if (currentTarget != null)
-            Log("Лечу к врагу с мячом");
+        //if (currentTarget != null)
+        //    Log("Лечу к врагу с мячом");
     }
 
     void MoveToTarget()
@@ -111,7 +110,7 @@ public class AIPlayer : MonoBehaviour
         {
             if (distance <= stopDistanceFromGoal)
             {
-                Log($"Останавливаюсь перед воротами (dist={distance:F1})");
+                //Log($"Останавливаюсь перед воротами (dist={distance:F1})");
 
                 rb.linearVelocity = Vector3.Lerp(
                     rb.linearVelocity,
@@ -125,16 +124,16 @@ public class AIPlayer : MonoBehaviour
         Vector3 dir = (currentTarget.position - transform.position).normalized;
         rb.linearVelocity = dir * moveSpeed;
 
-        Log($"Лечу к {currentTarget.name}, dist={distance:F1}");
+        //Log($"Лечу к {currentTarget.name}, dist={distance:F1}");
     }
 
     void RotateModel()
     {
 
-        
+
         if (currentTarget != null)
         {
-            Vector3 lookDirection = currentTarget.transform.position  - transform.position;
+            Vector3 lookDirection = currentTarget.transform.position - transform.position;
             //lookDirection.y = 0f; // убираем наклон по вертикали
 
             if (lookDirection != Vector3.zero)
@@ -156,7 +155,7 @@ public class AIPlayer : MonoBehaviour
 
             if (dist <= 3f && Time.time >= lastStealTime + stealCooldown)
             {
-                Log("Пытаюсь украсть мяч");
+                //Log("Пытаюсь украсть мяч");
                 StealBall(targetBot);
                 lastStealTime = Time.time;
             }
@@ -168,10 +167,14 @@ public class AIPlayer : MonoBehaviour
 
             if (dist <= scoringDistance && dist >= minThrowDistance)
             {
-                Log($"БРОСОК по воротам (dist={dist:F1})");
+                //Log($"БРОСОК по воротам (dist={dist:F1})");
                 ThrowBall(currentTarget.position);
             }
         }
+    }
+    public Quaffle GetCurrentQuaffle()
+    {
+        return currentQuaffle;
     }
 
     void StealBall(AIPlayer targetBot)
@@ -235,11 +238,11 @@ public class AIPlayer : MonoBehaviour
         {
             if (Time.time < lastThrowTime + pickupCooldown)
             {
-                Log("❌ Не могу взять мяч — кулдаун");
+                //Log("❌ Не могу взять мяч — кулдаун");
                 return;
             }
 
-            Log("✅ Взял мяч");
+            //Log("✅ Взял мяч");
         }
         else
         {
@@ -275,7 +278,7 @@ public class AIPlayer : MonoBehaviour
     {
         if (!hasBall || currentQuaffle == null) return;
 
-        Log("🏐 Бросаю мяч");
+        //Log("🏐 Бросаю мяч");
 
         Vector3 dir = (goalPos - transform.position).normalized;
         dir.y += 0.2f;
@@ -284,7 +287,7 @@ public class AIPlayer : MonoBehaviour
         {
             dir += Random.insideUnitSphere * 0.5f;
             dir.Normalize();
-            Log("❗ Неточный бросок");
+            //Log("❗ Неточный бросок");
         }
 
         currentQuaffle.Throw(dir);

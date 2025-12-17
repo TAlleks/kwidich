@@ -36,6 +36,13 @@ public class BroomController : MonoBehaviour
     public Quaffle quaffle; // Текущий мяч в руках
     public bool hasBall = false; // Флаг: есть ли мяч
     public float pickupCooldown = 1.0f; // Задержка перед повторным подбором
+    [Header("Steal Settings")]
+    public float stealDistance = 3f;
+    public float stealCooldown = 1.5f;
+
+    private float lastStealTime = -999f;
+    private float lastLostBallTime = -999f;
+
     #endregion
 
     #region Private Fields
@@ -85,12 +92,14 @@ public class BroomController : MonoBehaviour
         UpdateSteering();
         HandleCollisionRecovery();
         ThrowBallInput();
+        TryStealBall(); 
     }
+
 
     void FixedUpdate()
     {
         ApplyMovement();
-        ApplyHeightControl(); // ← единый контроллер высоты
+        ApplyHeightControl();
     }
 
     void OnCollisionEnter(Collision col)
@@ -138,6 +147,41 @@ public class BroomController : MonoBehaviour
     #endregion
 
     #region Input Handling
+    void TryStealBall()
+    {
+        if (hasBall) return;
+        if (Time.time < lastStealTime + stealCooldown) return;
+
+        AIPlayer[] bots = FindObjectsByType<AIPlayer>(FindObjectsSortMode.None);
+
+        foreach (var bot in bots)
+        {
+            if (!bot.hasBall) continue;
+
+            float dist = Vector3.Distance(transform.position, bot.transform.position);
+
+            if (dist < stealDistance)
+            {
+                StealBall(bot);
+                lastStealTime = Time.time;
+                return;
+            }
+        }
+    }
+
+    void StealBall(AIPlayer targetBot)
+    {
+        if (targetBot == null || !targetBot.hasBall) return;
+
+        Quaffle q = targetBot.GetCurrentQuaffle();
+        if (q != null)
+        {
+            targetBot.SetHasBall(false, null);
+            SetHasBall(true, q);
+
+            Debug.Log("[Broom] 💥 Украл мяч у AI");
+        }
+    }
 
     void HandleInput()
     {
@@ -215,11 +259,11 @@ public class BroomController : MonoBehaviour
         // === ИСПРАВЛЕНИЕ: Защита от вылета массива при -1 ===
         if (currentGear == -1)
         {
-            Debug.Log("[Broom] ⚪ Нейтраль", this);
+            //Debug.Log("[Broom] ⚪ Нейтраль", this);
         }
         else if (gear >= 0 && gear < gearSettings.Length)
         {
-            Debug.Log($"[Broom] ⚙ Передача {currentGear}: {gearSettings[gear].description}", this);
+            //Debug.Log($"[Broom] ⚙ Передача {currentGear}: {gearSettings[gear].description}", this);
         }
     }
 
@@ -264,13 +308,14 @@ public class BroomController : MonoBehaviour
         {
             if (Time.time < lastThrowTime + pickupCooldown)
             {
-                Log("❌ Не могу взять мяч — кулдаун");
+                //Log("❌ Не могу взять мяч — кулдаун");
                 return;
             }
-            Log("✅ Взял мяч");
+            //Log("✅ Взял мяч");
         }
         else
         {
+            lastLostBallTime = Time.time;
             Log("❌ Бросил / Потерял мяч");
         }
 
@@ -456,22 +501,22 @@ public class BroomController : MonoBehaviour
         }
     }
 
-    public void BoostSpeed(float multiplier, float duration)
-    {
-        StartCoroutine(SpeedBoostRoutine(multiplier, duration));
-    }
+    //public void BoostSpeed(float multiplier, float duration)
+    //{
+    //    StartCoroutine(SpeedBoostRoutine(multiplier, duration));
+    //}
 
-    private System.Collections.IEnumerator SpeedBoostRoutine(float multiplier, float duration)
-    {
-        float originalSpeed = baseMaxSpeed;
-        baseMaxSpeed *= multiplier;
-        Debug.Log($"[Broom] Буст скорости ×{multiplier} на {duration} сек", this);
+    //private System.Collections.IEnumerator SpeedBoostRoutine(float multiplier, float duration)
+    //{
+    //    float originalSpeed = baseMaxSpeed;
+    //    baseMaxSpeed *= multiplier;
+    //    Debug.Log($"[Broom] Буст скорости ×{multiplier} на {duration} сек", this);
 
-        yield return new WaitForSeconds(duration);
+    //    yield return new WaitForSeconds(duration);
 
-        baseMaxSpeed = originalSpeed;
-        Debug.Log("[Broom] Буст окончен", this);
-    }
+    //    baseMaxSpeed = originalSpeed;
+    //    Debug.Log("[Broom] Буст окончен", this);
+    //}
 
     public void SetInputController(InputControllerReader controller)
     {

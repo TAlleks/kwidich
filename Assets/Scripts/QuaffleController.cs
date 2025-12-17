@@ -14,8 +14,6 @@ public class Quaffle : MonoBehaviour
     internal Rigidbody rb;
     private Vector3 startPos;
     private Quaternion startRot;
-
-    // ДОБАВЛЕНО: Таймер, чтобы мяч не прилипал обратно мгновенно
     private float canBePickedUpTime = 0f;
 
     void Awake()
@@ -32,7 +30,6 @@ public class Quaffle : MonoBehaviour
     {
         if (isHeld && holder != null)
         {
-            // Держим перед игроком, плавно следуем за ним
             Vector3 offset = holder.forward * 1.2f + holder.up * 0.5f;
             transform.position = Vector3.Lerp(transform.position, holder.position + offset, Time.deltaTime * 15f);
             transform.rotation = Quaternion.Lerp(transform.rotation, holder.rotation, Time.deltaTime * 15f);
@@ -45,25 +42,70 @@ public class Quaffle : MonoBehaviour
 
     private void HoverAboveGround()
     {
-        // Если мяч просто валяется, он должен висеть над землей
         if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, hoverHeight + 2f, groundLayer))
         {
             float targetY = hit.point.y + hoverHeight;
             float error = targetY - transform.position.y;
-            // Пружиним вверх
             rb.linearVelocity += Vector3.up * error * 5f * Time.deltaTime;
+        }
+    }
+
+    public void TryPickup(Transform newHolder)
+    {
+        if (Time.time < canBePickedUpTime) return;
+
+        bool newIsPlayer = newHolder.GetComponentInParent<BroomController>() != null;
+        bool newIsAI = newHolder.GetComponentInParent<AIPlayer>() != null;
+
+        if (isHeld && holder != null)
+        {
+            bool currentIsPlayer = holder.GetComponentInParent<BroomController>() != null;
+            bool currentIsAI = holder.GetComponentInParent<AIPlayer>() != null;
+
+            if (currentIsPlayer) return; // Никто не может забрать у игрока
+
+            if (currentIsAI && newIsPlayer)
+            {
+                AIPlayer ai = holder.GetComponentInParent<AIPlayer>();
+                if (ai != null) ai.SetHasBall(false, null);
+            }
+            else return; // Боты не крадут друг у друга
+        }
+
+        // Назначаем нового владельца
+        holder = newHolder;
+        isHeld = true;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+        rb.useGravity = false;
+
+        BroomController broom = newHolder.GetComponentInParent<BroomController>();
+        if (broom != null)
+        {
+            rb.mass = 0;
+            broom.SetHasBall(true, this);
+            return;
+        }
+
+        AIPlayer aiPlayer = newHolder.GetComponentInParent<AIPlayer>();
+        if (aiPlayer != null)
+        {
+            rb.mass = 1;
+            aiPlayer.SetHasBall(true, this);
         }
     }
 
     public void Pickup(Transform newHolder)
     {
-        if (isHeld) return; // Уже у кого-то в руках
+        if (isHeld) return;
 
         isHeld = true;
         holder = newHolder;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
-        rb.isKinematic = true; // Отключаем физику, чтобы не толкал игрока
+        rb.isKinematic = true;
+        rb.useGravity = false;
     }
 
     public void Throw(Vector3 direction)
@@ -72,9 +114,7 @@ public class Quaffle : MonoBehaviour
         holder = null;
         rb.isKinematic = false;
         rb.useGravity = true;
-        // ДОБАВЛЕНО: Запрещаем подбор на 1 секунду после броска
-        canBePickedUpTime = Time.time + 0.3f;
-        // Добавляем импульс броска
+        canBePickedUpTime = Time.time + 1f;
         rb.AddForce(direction * throwForce, ForceMode.Impulse);
     }
 
@@ -91,30 +131,22 @@ public class Quaffle : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        // ВАЖНО: Если время кулдауна не прошло — игнорируем столкновения
-        if (Time.time < canBePickedUpTime) return;
-        if (isHeld) return;
-        Debug.Log("Мяча коснулись");
-        // Проверяем, это Игрок (BroomController)?
-        BroomController broom = other.GetComponentInParent<BroomController>();
+        if (Time.time < canBePickedUpTime || isHeld) return;
+
+        Transform root = other.transform.root;
+        BroomController broom = root.GetComponentInChildren<BroomController>();
         if (broom != null)
         {
-            Debug.Log("Подобрал");
-            Pickup(broom.transform);
-            rb.mass = 0;
-            // Нужно сказать метле, что у нее теперь есть мяч!
-            broom.SetHasBall(true, this);
+            TryPickup(broom.transform);
             return;
         }
 
-        // Проверяем, это Бот (AIPlayer)?
-        AIPlayer ai = other.GetComponentInParent<AIPlayer>();
-        if (ai != null && !ai.hasBall)  // Дополнительно проверяем, что бот не держит мяч
+        AIPlayer ai = root.GetComponentInChildren<AIPlayer>();
+        if (ai != null && !ai.hasBall)
         {
             Pickup(ai.transform);
             rb.mass = 1;
-            ai.SetHasBall(true, this);  // Передаем ссылку на себя, чтобы бот знал, ЧТО он держит
+            ai.SetHasBall(true, this);
         }
     }
-
 }
