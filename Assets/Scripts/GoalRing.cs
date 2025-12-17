@@ -5,19 +5,20 @@ public class GoalRing : MonoBehaviour
     [Header("Audio")]
     [SerializeField] private AudioClip goalSound;
     [SerializeField] private AudioSource audioSource;
-
+    GameScoreManager scoreManager;
     [Header("Goal Settings")]
     [SerializeField] private Team scoredTeam = Team.Enemy;
 
     private void Awake()
     {
+        scoreManager = FindAnyObjectByType<GameScoreManager>();
         if (audioSource == null)
             audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
 
         audioSource.playOnAwake = false;
-        audioSource.spatialBlend = 1f;
+        //audioSource.spatialBlend = 1f;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -31,7 +32,7 @@ public class GoalRing : MonoBehaviour
         // Гол засчитывается только если мяч в свободном состоянии (не в руках).
         if (quaffle.isHeld) return;
 
-        if (goalSound != null && audioSource != null)
+        if (goalSound != null && audioSource != null && scoreManager.playerScore != scoreManager.maxScore)
         {
             audioSource.PlayOneShot(goalSound);
         }

@@ -131,7 +131,7 @@ public class AIPlayer : MonoBehaviour
     void RotateModel()
     {
 
-        // Поворачиваем питомца на камеру при появлении
+        
         if (currentTarget != null)
         {
             Vector3 lookDirection = currentTarget.transform.position  - transform.position;

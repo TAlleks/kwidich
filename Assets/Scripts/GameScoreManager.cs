@@ -17,7 +17,7 @@ public class GameScoreManager : MonoBehaviour
     public string winSceneName = "WinScene";
     public string loseSceneName = "LoseScene"; // Можно использовать одну сцену
 
-    private int playerScore = 0;
+    internal int playerScore = 0;
     private int enemyScore = 0;
 
     private void Awake()
