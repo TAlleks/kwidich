@@ -59,7 +59,7 @@ public class GameScoreManager : MonoBehaviour
     private void UpdateScoreUI()
     {
         if (playerScoreText != null)
-            playerScoreText.text = "Your " + (playerScore).ToString() + " : " + (enemyScore).ToString() + " Enemy";
+            playerScoreText.text = (playerScore).ToString() + "                            " + (enemyScore).ToString();
     }
 
     private void CheckGameOver()

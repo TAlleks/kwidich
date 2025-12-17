@@ -31,10 +31,16 @@ public class BroomController : MonoBehaviour
     public Transform broomModel;
     public Rigidbody rb;
     private Camera _mainCamera;
+
+    [Header("Ball Interaction")]
+    public Quaffle quaffle; // Текущий мяч в руках
+    public bool hasBall = false; // Флаг: есть ли мяч
+    public float pickupCooldown = 1.0f; // Задержка перед повторным подбором
     #endregion
 
     #region Private Fields
-
+    // Ball Logic
+    private float lastThrowTime; // Время последнего броска
     // Steering
     private float currentSteeringAngle;
     private float targetSteeringAngle;
@@ -45,8 +51,6 @@ public class BroomController : MonoBehaviour
     private bool isGrounded;
     private float stableHeight;
     private Vector3 flightDirection;
-    public Quaffle quaffle;
-
     // Collision recovery
     private bool isRecoveringFromCollision;
     private float collisionRecoveryTimer;
@@ -143,12 +147,25 @@ public class BroomController : MonoBehaviour
             return;
         }
 
+        // === ИСПРАВЛЕНИЕ: Обработка нейтрали ===
+        if (currentGear == -1)
+        {
+            // На нейтрали просто плавно сбрасываем скорость (имитация сопротивления воздуха)
+            currentSpeed = Mathf.Lerp(currentSpeed, 0f, 2f * Time.deltaTime);
+
+            // Руль все равно считываем, чтобы поворачивать по инерции
+            float steeringNeutral = inputControllerReader.Steering;
+            targetSteeringAngle = steeringNeutral * 45f;
+            return;
+        }
+
         float steering = inputControllerReader.Steering;
         float throttle = inputControllerReader.Throttle;
         float brake = inputControllerReader.Brake;
 
         targetSteeringAngle = steering * 45f;
 
+        // Безопасная проверка массива
         if (gearSettings[currentGear].type == MovementType.Horizontal)
         {
             float maxSpd = baseMaxSpeed * Mathf.Abs(gearSettings[currentGear].speedMultiplier);
@@ -165,35 +182,52 @@ public class BroomController : MonoBehaviour
     {
         if (inputControllerReader == null) return;
 
-        bool canShift = (Time.time - lastGearShiftTime) > gearShiftCooldown;
-        //bool shiftPressed = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.JoystickButton4);
+        // === ИСПРАВЛЕНИЕ: Логика нейтрали ===
 
-        if (canShift)
+        // 1. По умолчанию считаем, что ручка в нейтрали (-1)
+        int targetGear = -1;
+
+        // 2. Если нажата хоть одна кнопка — запоминаем передачу
+        if (inputControllerReader.Shifter1) targetGear = 0;
+        else if (inputControllerReader.Shifter2) targetGear = 1;
+        else if (inputControllerReader.Shifter3) targetGear = 2;
+        else if (inputControllerReader.Shifter4) targetGear = 3;
+        else if (inputControllerReader.Shifter5) targetGear = 4;
+        else if (inputControllerReader.Shifter6) targetGear = 5;
+        else if (inputControllerReader.Shifter7) targetGear = 6;
+
+        // 3. Если целевая передача отличается от текущей — переключаем
+        if (targetGear != currentGear)
         {
-            if (inputControllerReader.Shifter1) ShiftGear(0);
-            else if (inputControllerReader.Shifter2) ShiftGear(1);
-            else if (inputControllerReader.Shifter3) ShiftGear(2);
-            else if (inputControllerReader.Shifter4) ShiftGear(3);
-            else if (inputControllerReader.Shifter5) ShiftGear(4);
-            else if (inputControllerReader.Shifter6) ShiftGear(5);
-            else if (inputControllerReader.Shifter7) ShiftGear(6);
+            // Проверка кулдауна
+            if ((Time.time - lastGearShiftTime) > gearShiftCooldown)
+            {
+                ShiftGear(targetGear);
+                lastGearShiftTime = Time.time;
+            }
         }
     }
 
     void ShiftGear(int gear)
     {
-        if (gear >= 0 && gear <= 6 && gear != currentGear)
+        currentGear = gear;
+
+        // === ИСПРАВЛЕНИЕ: Защита от вылета массива при -1 ===
+        if (currentGear == -1)
         {
-            currentGear = gear;
-            Debug.Log($"[Broom] Передача {currentGear}: {gearSettings[gear].description}", this);
+            Debug.Log("[Broom] ⚪ Нейтраль", this);
+        }
+        else if (gear >= 0 && gear < gearSettings.Length)
+        {
+            Debug.Log($"[Broom] ⚙ Передача {currentGear}: {gearSettings[gear].description}", this);
         }
     }
+
     void ThrowBallInput()
     {
         if (inputControllerReader == null) return;
 
-        // Бросок по нажатию сцепления (Clutch >= 0.8f)
-        if (inputControllerReader.Clutch >= 0.8f && quaffle != null && quaffle.isHeld)
+        if (inputControllerReader.Clutch >= 0.8f && hasBall && quaffle != null && quaffle.isHeld)
         {
             ThrowBall();
         }
@@ -203,35 +237,51 @@ public class BroomController : MonoBehaviour
     {
         if (quaffle == null || !quaffle.isHeld) return;
 
-        // === ОПРЕДЕЛЯЕМ НАПРАВЛЕНИЕ БРОСКА ===
         Vector3 throwDirection;
 
         if (_mainCamera != null)
         {
-            // Бросок туда, куда смотрит камера (как в шутерах)
             throwDirection = _mainCamera.transform.forward;
         }
         else
         {
-            // Если камеры нет — бросаем вперёд по направлению полёта
             throwDirection = flightDirection;
         }
 
-        // Убираем вертикальную компоненту, если хотите "горизонтальный" бросок
-        // throwDirection.y = 0f;
-
-        // Нормализуем и добавляем лёгкий подъём (как в квиддиче)
         throwDirection = throwDirection.normalized;
-        throwDirection.y = Mathf.Max(throwDirection.y, 0.1f); // минимальный подъём
+        throwDirection.y = Mathf.Max(throwDirection.y, 0.1f);
 
-        // Передаём направление в общий метод броска
+        quaffle.rb.mass = 1;
         quaffle.Throw(throwDirection);
-        Debug.Log("Бросил мяч");
 
-        // Опционально: сброс ссылки на мяч у игрока
-        quaffle = null;
+        lastThrowTime = Time.time;
+        SetHasBall(false, null);
     }
 
+    public void SetHasBall(bool value, Quaffle incomingQuaffle)
+    {
+        if (value == true)
+        {
+            if (Time.time < lastThrowTime + pickupCooldown)
+            {
+                Log("❌ Не могу взять мяч — кулдаун");
+                return;
+            }
+            Log("✅ Взял мяч");
+        }
+        else
+        {
+            Log("❌ Бросил / Потерял мяч");
+        }
+
+        hasBall = value;
+        quaffle = value ? incomingQuaffle : null;
+    }
+
+    private void Log(string message)
+    {
+        Debug.Log($"[BroomLogic] {message}", this);
+    }
 
     #endregion
 
@@ -239,7 +289,6 @@ public class BroomController : MonoBehaviour
 
     void CheckGround()
     {
-        // Расширяем проверку до 1.5 * hoverHeight — надёжнее
         isGrounded = Physics.Raycast(transform.position, Vector3.down, hoverHeight * 1.5f);
     }
 
@@ -247,9 +296,14 @@ public class BroomController : MonoBehaviour
     {
         currentSteeringAngle = Mathf.Lerp(currentSteeringAngle, targetSteeringAngle, steeringSpeed * Time.deltaTime);
 
-        if (gearSettings[currentGear].type == MovementType.Horizontal && !isRecoveringFromCollision)
+        // === ИСПРАВЛЕНИЕ: Проверка на нейтраль перед наклоном ===
+        if (currentGear != -1 && !isRecoveringFromCollision)
         {
-            ApplyBroomTilt();
+            // Наклоняем только если это горизонтальная передача
+            if (gearSettings[currentGear].type == MovementType.Horizontal)
+            {
+                ApplyBroomTilt();
+            }
         }
     }
 
@@ -257,8 +311,8 @@ public class BroomController : MonoBehaviour
     {
         if (broomModel != null)
         {
-            float tiltZ = -currentSteeringAngle * 0.8f; // крен в поворот
-            float tiltX = Mathf.Sign(currentSpeed) * Mathf.Clamp(Mathf.Abs(currentSpeed) / baseMaxSpeed, 0f, 1f) * 8f; // наклон вперёд/назад
+            float tiltZ = -currentSteeringAngle * 0.8f;
+            float tiltX = Mathf.Sign(currentSpeed) * Mathf.Clamp(Mathf.Abs(currentSpeed) / baseMaxSpeed, 0f, 1f) * 8f;
 
             Quaternion targetTilt = Quaternion.Euler(tiltX, 0f, tiltZ);
             broomModel.localRotation = Quaternion.Slerp(broomModel.localRotation, targetTilt, Time.deltaTime * 10f);
@@ -267,6 +321,9 @@ public class BroomController : MonoBehaviour
 
     void ApplyMovement()
     {
+        // === ИСПРАВЛЕНИЕ: Если нейтраль — не применяем тягу ===
+        if (currentGear == -1) return;
+
         if (gearSettings[currentGear].type != MovementType.Horizontal || isRecoveringFromCollision)
             return;
 
@@ -275,13 +332,11 @@ public class BroomController : MonoBehaviour
 
         float direction = Mathf.Sign(gearSettings[currentGear].speedMultiplier);
 
-        // 1. ПОВОРОТ НАПРАВЛЕНИЯ (а не transform)
         float turnRate = currentSteeringAngle * steeringSensitivity * Time.fixedDeltaTime;
         Quaternion turnRot = Quaternion.Euler(0f, turnRate, 0f);
         flightDirection = turnRot * flightDirection;
         flightDirection.Normalize();
 
-        // 2. ЗАДАЁМ СКОРОСТЬ
         Vector3 velocity = flightDirection * currentSpeed * direction;
         rb.linearVelocity = new Vector3(
             velocity.x,
@@ -289,18 +344,15 @@ public class BroomController : MonoBehaviour
             velocity.z
         );
 
-        // 3. ПОВОРАЧИВАЕМ МЕТЛУ В НАПРАВЛЕНИЕ ПОЛЁТА
         Quaternion targetRot = Quaternion.LookRotation(flightDirection, Vector3.up);
         rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRot, Time.fixedDeltaTime * 6f));
     }
 
-
-
     void ApplyHeightControl()
     {
-        // 1. Целевая высота
         float targetY = stableHeight;
 
+        // Если нейтраль, эти условия просто не выполнятся (false), высота не изменится
         if (currentGear == 0) // Вверх
             targetY += verticalAcceleration * Time.fixedDeltaTime;
         else if (currentGear == 1) // Вниз
@@ -309,25 +361,25 @@ public class BroomController : MonoBehaviour
         targetY = Mathf.Clamp(targetY, 1f, 50f);
         stableHeight = targetY;
 
-        // 2. Желаемая вертикальная скорость (П-регулятор)
         float heightError = targetY - transform.position.y;
         float desiredVerticalSpeed = Mathf.Clamp(heightError * 6f, -maxVerticalSpeed, maxVerticalSpeed);
 
-        // 3. Плавный переход
         float currentVertVel = rb.linearVelocity.y;
         float newVertVel = Mathf.Lerp(currentVertVel, desiredVerticalSpeed, Time.fixedDeltaTime * 8f);
 
-        // 4. "Подушка" при близости к земле
-        if (isGrounded && gearSettings[currentGear].type == MovementType.Horizontal)
+        // === ИСПРАВЛЕНИЕ: Проверка на нейтраль перед доступом к gearSettings ===
+        if (isGrounded && currentGear != -1)
         {
-            if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, hoverHeight * 2f))
+            if (gearSettings[currentGear].type == MovementType.Horizontal)
             {
-                float cushion = Mathf.Max(0f, 1f - hit.distance / hoverHeight);
-                newVertVel += liftForce * cushion * Time.fixedDeltaTime;
+                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, hoverHeight * 2f))
+                {
+                    float cushion = Mathf.Max(0f, 1f - hit.distance / hoverHeight);
+                    newVertVel += liftForce * cushion * Time.fixedDeltaTime;
+                }
             }
         }
 
-        // 5. Устанавливаем итоговую скорость
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, newVertVel, rb.linearVelocity.z);
     }
 
@@ -347,12 +399,8 @@ public class BroomController : MonoBehaviour
     private void ApplyCollisionResponse(Collision col)
     {
         Vector3 impactPoint = rb.worldCenterOfMass;
-
-        // Мягкий отскок вверх + гашение
         Vector3 bounce = Vector3.up * 3f + (-rb.linearVelocity.normalized) * 1f;
         rb.AddForceAtPosition(bounce * 2f, impactPoint, ForceMode.Impulse);
-
-        // Демпфирование
         rb.linearVelocity *= 0.3f;
         rb.angularVelocity *= 0.1f;
     }
@@ -401,6 +449,11 @@ public class BroomController : MonoBehaviour
 
         SetInitialHeight();
         stableHeight = transform.position.y;
+
+        if (hasBall && quaffle != null)
+        {
+            SetHasBall(false, quaffle);
+        }
     }
 
     public void BoostSpeed(float multiplier, float duration)

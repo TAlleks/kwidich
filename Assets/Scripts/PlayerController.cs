@@ -42,6 +42,7 @@ public class AIPlayer : MonoBehaviour
 
     private GoalRing[] allGoals;
 
+
     void Awake()
     {
         rb = GetComponent<Rigidbody>();

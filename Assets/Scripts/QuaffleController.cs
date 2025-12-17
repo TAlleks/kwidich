@@ -11,9 +11,12 @@ public class Quaffle : MonoBehaviour
     public bool isHeld = false;
     public Transform holder = null;
 
-    private Rigidbody rb;
+    internal Rigidbody rb;
     private Vector3 startPos;
     private Quaternion startRot;
+
+    // ДОБАВЛЕНО: Таймер, чтобы мяч не прилипал обратно мгновенно
+    private float canBePickedUpTime = 0f;
 
     void Awake()
     {
@@ -69,7 +72,8 @@ public class Quaffle : MonoBehaviour
         holder = null;
         rb.isKinematic = false;
         rb.useGravity = true;
-
+        // ДОБАВЛЕНО: Запрещаем подбор на 1 секунду после броска
+        canBePickedUpTime = Time.time + 0.3f;
         // Добавляем импульс броска
         rb.AddForce(direction * throwForce, ForceMode.Impulse);
     }
@@ -87,7 +91,8 @@ public class Quaffle : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        Debug.Log("Мяча коснулись");
+        // ВАЖНО: Если время кулдауна не прошло — игнорируем столкновения
+        if (Time.time < canBePickedUpTime) return;
         if (isHeld) return;
         Debug.Log("Мяча коснулись");
         // Проверяем, это Игрок (BroomController)?
@@ -97,6 +102,8 @@ public class Quaffle : MonoBehaviour
             Debug.Log("Подобрал");
             Pickup(broom.transform);
             rb.mass = 0;
+            // Нужно сказать метле, что у нее теперь есть мяч!
+            broom.SetHasBall(true, this);
             return;
         }
 
