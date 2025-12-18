@@ -88,11 +88,10 @@ public class BroomController : MonoBehaviour
     {
         HandleInput();
         CheckGround();
-        HandleGearShifting();
         UpdateSteering();
         HandleCollisionRecovery();
         ThrowBallInput();
-        TryStealBall(); 
+        TryStealBall();
     }
 
 
@@ -186,86 +185,24 @@ public class BroomController : MonoBehaviour
     void HandleInput()
     {
         if (inputControllerReader == null)
-        {
-            Debug.LogError("InputControllerReader не назначен на " + name, this);
             return;
-        }
-
-        // === ИСПРАВЛЕНИЕ: Обработка нейтрали ===
-        if (currentGear == -1)
-        {
-            // На нейтрали просто плавно сбрасываем скорость (имитация сопротивления воздуха)
-            currentSpeed = Mathf.Lerp(currentSpeed, 0f, 2f * Time.deltaTime);
-
-            // Руль все равно считываем, чтобы поворачивать по инерции
-            float steeringNeutral = inputControllerReader.Steering;
-            targetSteeringAngle = steeringNeutral * 45f;
-            return;
-        }
 
         float steering = inputControllerReader.Steering;
         float throttle = inputControllerReader.Throttle;
         float brake = inputControllerReader.Brake;
 
-        targetSteeringAngle = steering * 45f;
+        targetSteeringAngle = steering * 40f;
 
-        // Безопасная проверка массива
-        if (gearSettings[currentGear].type == MovementType.Horizontal)
-        {
-            float maxSpd = baseMaxSpeed * Mathf.Abs(gearSettings[currentGear].speedMultiplier);
-            float targetSpd = throttle * maxSpd;
+        float input = throttle - brake;
 
-            if (brake > 0.1f) targetSpd = 0f;
-
-            // Плавное ускорение/торможение
-            currentSpeed = Mathf.Lerp(currentSpeed, targetSpd, acceleration * Time.deltaTime);
-        }
+        float targetSpeed = input * baseMaxSpeed;
+        currentSpeed = Mathf.Lerp(
+            currentSpeed,
+            targetSpeed,
+            acceleration * Time.deltaTime
+        );
     }
 
-    void HandleGearShifting()
-    {
-        if (inputControllerReader == null) return;
-
-        // === ИСПРАВЛЕНИЕ: Логика нейтрали ===
-
-        // 1. По умолчанию считаем, что ручка в нейтрали (-1)
-        int targetGear = -1;
-
-        // 2. Если нажата хоть одна кнопка — запоминаем передачу
-        if (inputControllerReader.Shifter1) targetGear = 0;
-        else if (inputControllerReader.Shifter2) targetGear = 1;
-        else if (inputControllerReader.Shifter3) targetGear = 2;
-        else if (inputControllerReader.Shifter4) targetGear = 3;
-        else if (inputControllerReader.Shifter5) targetGear = 4;
-        else if (inputControllerReader.Shifter6) targetGear = 5;
-        else if (inputControllerReader.Shifter7) targetGear = 6;
-
-        // 3. Если целевая передача отличается от текущей — переключаем
-        if (targetGear != currentGear)
-        {
-            // Проверка кулдауна
-            if ((Time.time - lastGearShiftTime) > gearShiftCooldown)
-            {
-                ShiftGear(targetGear);
-                lastGearShiftTime = Time.time;
-            }
-        }
-    }
-
-    void ShiftGear(int gear)
-    {
-        currentGear = gear;
-
-        // === ИСПРАВЛЕНИЕ: Защита от вылета массива при -1 ===
-        if (currentGear == -1)
-        {
-            //Debug.Log("[Broom] ⚪ Нейтраль", this);
-        }
-        else if (gear >= 0 && gear < gearSettings.Length)
-        {
-            //Debug.Log($"[Broom] ⚙ Передача {currentGear}: {gearSettings[gear].description}", this);
-        }
-    }
 
     void ThrowBallInput()
     {
@@ -339,69 +276,100 @@ public class BroomController : MonoBehaviour
 
     void UpdateSteering()
     {
-        currentSteeringAngle = Mathf.Lerp(currentSteeringAngle, targetSteeringAngle, steeringSpeed * Time.deltaTime);
+        currentSteeringAngle = Mathf.Lerp(
+            currentSteeringAngle,
+            targetSteeringAngle,
+            steeringSpeed * Time.deltaTime
+        );
 
-        // === ИСПРАВЛЕНИЕ: Проверка на нейтраль перед наклоном ===
-        if (currentGear != -1 && !isRecoveringFromCollision)
-        {
-            // Наклоняем только если это горизонтальная передача
-            if (gearSettings[currentGear].type == MovementType.Horizontal)
-            {
-                ApplyBroomTilt();
-            }
-        }
+        if (isRecoveringFromCollision)
+            return;
+
+        ApplyBroomTilt();
     }
 
     private void ApplyBroomTilt()
     {
-        if (broomModel != null)
-        {
-            float tiltZ = -currentSteeringAngle * 0.8f;
-            float tiltX = Mathf.Sign(currentSpeed) * Mathf.Clamp(Mathf.Abs(currentSpeed) / baseMaxSpeed, 0f, 1f) * 8f;
+        if (broomModel == null)
+            return;
 
-            Quaternion targetTilt = Quaternion.Euler(tiltX, 0f, tiltZ);
-            broomModel.localRotation = Quaternion.Slerp(broomModel.localRotation, targetTilt, Time.deltaTime * 10f);
+        Quaternion targetTilt;
+
+        if (Mathf.Abs(currentSpeed) < 0.1f)
+        {
+            // 🟢 Медленно возвращаемся в нейтраль
+            targetTilt = Quaternion.identity;
         }
+        else
+        {
+            float speedFactor = Mathf.Clamp01(Mathf.Abs(currentSpeed) / baseMaxSpeed);
+
+            float tiltZ = -currentSteeringAngle * 0.8f;
+            float tiltX = Mathf.Sign(currentSpeed) * speedFactor * 8f;
+
+            targetTilt = Quaternion.Euler(tiltX, 0f, tiltZ);
+        }
+
+        broomModel.localRotation = Quaternion.Slerp(
+            broomModel.localRotation,
+            targetTilt,
+            Time.deltaTime * 8f
+        );
     }
 
     void ApplyMovement()
     {
-        // === ИСПРАВЛЕНИЕ: Если нейтраль — не применяем тягу ===
-        if (currentGear == -1) return;
-
-        if (gearSettings[currentGear].type != MovementType.Horizontal || isRecoveringFromCollision)
+        if (isRecoveringFromCollision)
             return;
 
-        if (currentSpeed < 0.01f)
+        if (Mathf.Abs(currentSpeed) < 0.1f)
             return;
 
-        float direction = Mathf.Sign(gearSettings[currentGear].speedMultiplier);
+        float speedSign = Mathf.Sign(currentSpeed);
 
-        float turnRate = currentSteeringAngle * steeringSensitivity * Time.fixedDeltaTime;
+        // Руль: при движении назад инвертируем поворот (как у машины)
+        float turnRate =
+            currentSteeringAngle *
+            steeringSensitivity *
+            speedSign *
+            Time.fixedDeltaTime;
+
         Quaternion turnRot = Quaternion.Euler(0f, turnRate, 0f);
+
+        // Поворачиваем направление носа
         flightDirection = turnRot * flightDirection;
         flightDirection.Normalize();
 
-        Vector3 velocity = flightDirection * currentSpeed * direction;
+        // ВАЖНО: скорость может быть отрицательной — это и есть движение назад
+        Vector3 velocity = flightDirection * currentSpeed;
+
         rb.linearVelocity = new Vector3(
             velocity.x,
             rb.linearVelocity.y,
             velocity.z
         );
 
+        // ❗ ВСЕГДА смотрим вперёд, НИКОГДА не разворачиваем при заднем ходе
         Quaternion targetRot = Quaternion.LookRotation(flightDirection, Vector3.up);
-        rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRot, Time.fixedDeltaTime * 6f));
+
+        rb.MoveRotation(
+            Quaternion.Slerp(rb.rotation, targetRot, Time.fixedDeltaTime * 6f)
+        );
     }
+
+
 
     void ApplyHeightControl()
     {
         float targetY = stableHeight;
 
-        // Если нейтраль, эти условия просто не выполнятся (false), высота не изменится
-        if (currentGear == 0) // Вверх
-            targetY += verticalAcceleration * Time.fixedDeltaTime;
-        else if (currentGear == 1) // Вниз
-            targetY -= verticalAcceleration * Time.fixedDeltaTime;
+        if (inputControllerReader != null)
+        {
+            if (inputControllerReader.Shifter3) // вверх
+                targetY += verticalAcceleration * Time.fixedDeltaTime;
+            else if (inputControllerReader.Shifter4) // вниз
+                targetY -= verticalAcceleration * Time.fixedDeltaTime;
+        }
 
         targetY = Mathf.Clamp(targetY, 1f, 50f);
         stableHeight = targetY;
@@ -412,21 +380,9 @@ public class BroomController : MonoBehaviour
         float currentVertVel = rb.linearVelocity.y;
         float newVertVel = Mathf.Lerp(currentVertVel, desiredVerticalSpeed, Time.fixedDeltaTime * 8f);
 
-        // === ИСПРАВЛЕНИЕ: Проверка на нейтраль перед доступом к gearSettings ===
-        if (isGrounded && currentGear != -1)
-        {
-            if (gearSettings[currentGear].type == MovementType.Horizontal)
-            {
-                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, hoverHeight * 2f))
-                {
-                    float cushion = Mathf.Max(0f, 1f - hit.distance / hoverHeight);
-                    newVertVel += liftForce * cushion * Time.fixedDeltaTime;
-                }
-            }
-        }
-
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, newVertVel, rb.linearVelocity.z);
     }
+
 
     #endregion
 

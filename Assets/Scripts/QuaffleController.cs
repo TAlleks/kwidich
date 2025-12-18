@@ -15,6 +15,7 @@ public class Quaffle : MonoBehaviour
     private Vector3 startPos;
     private Quaternion startRot;
     private float canBePickedUpTime = 0f;
+    public Collider col;
 
     void Awake()
     {
@@ -79,7 +80,7 @@ public class Quaffle : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
         rb.isKinematic = true;
         rb.useGravity = false;
-
+        col.gameObject.SetActive(false);
         BroomController broom = newHolder.GetComponentInParent<BroomController>();
         if (broom != null)
         {
@@ -106,6 +107,7 @@ public class Quaffle : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
         rb.isKinematic = true;
         rb.useGravity = false;
+        col.gameObject.SetActive(false);
     }
 
     public void Throw(Vector3 direction)
@@ -115,6 +117,7 @@ public class Quaffle : MonoBehaviour
         rb.isKinematic = false;
         rb.useGravity = true;
         canBePickedUpTime = Time.time + 1f;
+        col.gameObject.SetActive(true);
         rb.AddForce(direction * throwForce, ForceMode.Impulse);
     }
 
