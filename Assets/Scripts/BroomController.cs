@@ -38,7 +38,7 @@ public class BroomController : MonoBehaviour
     public float pickupCooldown = 1.0f; // Задержка перед повторным подбором
     [Header("Steal Settings")]
     public float stealDistance = 3f;
-    public float stealCooldown = 1.5f;
+    public float stealCooldown = 5f;
 
     private float lastStealTime = -999f;
     private float lastLostBallTime = -999f;
@@ -101,10 +101,10 @@ public class BroomController : MonoBehaviour
         ApplyHeightControl();
     }
 
-    void OnCollisionEnter(Collision col)
-    {
-        HandleCollision(col);
-    }
+    //void OnCollisionEnter(Collision col)
+    //{
+    //    HandleCollision(col);
+    //}
 
     #endregion
 
@@ -177,7 +177,7 @@ public class BroomController : MonoBehaviour
         {
             targetBot.SetHasBall(false, null);
             SetHasBall(true, q);
-
+            quaffle.holder = gameObject.transform;
             Debug.Log("[Broom] 💥 Украл мяч у AI");
         }
     }

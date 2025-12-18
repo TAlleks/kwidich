@@ -92,6 +92,12 @@ public class AIPlayer : MonoBehaviour
         if (currentTarget != null) return;
 
         currentTarget = FindNearestBotWithBall();
+
+        if (currentTarget == null)
+        {
+            currentTarget = FindPlayerWithBall();
+        }
+
         //if (currentTarget != null)
         //    Log("Лечу к врагу с мячом");
     }
@@ -160,7 +166,22 @@ public class AIPlayer : MonoBehaviour
                 lastStealTime = Time.time;
             }
         }
-
+        BroomController player = currentTarget.GetComponent<BroomController>();
+        if (!hasBall && player != null && player.hasBall)
+        {
+            float dist = Vector3.Distance(transform.position, currentTarget.position);
+            if (dist <= 3f && Time.time >= lastStealTime + stealCooldown)
+            {
+                Quaffle q = player.quaffle;
+                if (q != null)
+                {
+                    player.SetHasBall(false, null);
+                    q.TryPickup(transform);
+                    lastStealTime = Time.time;
+                    Log("УКРАЛ мяч у игрока");
+                }
+            }
+        }
         if (hasBall && currentTarget.GetComponent<GoalRing>() != null)
         {
             float dist = Vector3.Distance(transform.position, currentTarget.position);
@@ -295,4 +316,13 @@ public class AIPlayer : MonoBehaviour
 
         lastThrowTime = Time.time;
     }
+    Transform FindPlayerWithBall()
+    {
+        BroomController player = FindFirstObjectByType<BroomController>();
+        if (player != null && player.hasBall)
+            return player.transform;
+
+        return null;
+    }
+
 }

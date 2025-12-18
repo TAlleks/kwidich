@@ -63,14 +63,35 @@ public class Quaffle : MonoBehaviour
             bool currentIsPlayer = holder.GetComponentInParent<BroomController>() != null;
             bool currentIsAI = holder.GetComponentInParent<AIPlayer>() != null;
 
-            if (currentIsPlayer) return; // Никто не может забрать у игрока
-
-            if (currentIsAI && newIsPlayer)
+            // Если сейчас мяч у игрока
+            if (currentIsPlayer)
             {
-                AIPlayer ai = holder.GetComponentInParent<AIPlayer>();
-                if (ai != null) ai.SetHasBall(false, null);
+                // Позволяем только ИИ (боту) отобрать мяч у игрока
+                if (!newIsAI)
+                    return;
+
+                // Снимем флаг у игрока — отбирают ботом
+                BroomController player = holder.GetComponentInParent<BroomController>();
+                if (player != null)
+                {
+                    player.SetHasBall(false, null);
+                }
             }
-            else return; // Боты не крадут друг у друга
+            // Если сейчас мяч у бота
+            else if (currentIsAI)
+            {
+                // Если новый держатель — игрок, позволяем (игрок подбирает)
+                if (newIsPlayer)
+                {
+                    AIPlayer ai = holder.GetComponentInParent<AIPlayer>();
+                    if (ai != null) ai.SetHasBall(false, null);
+                }
+                else
+                {
+                    // Боты не крадут друг у друга
+                    return;
+                }
+            }
         }
 
         // Назначаем нового владельца
@@ -81,6 +102,7 @@ public class Quaffle : MonoBehaviour
         rb.isKinematic = true;
         rb.useGravity = false;
         col.gameObject.SetActive(false);
+
         BroomController broom = newHolder.GetComponentInParent<BroomController>();
         if (broom != null)
         {
@@ -96,6 +118,7 @@ public class Quaffle : MonoBehaviour
             aiPlayer.SetHasBall(true, this);
         }
     }
+
 
     public void Pickup(Transform newHolder)
     {
