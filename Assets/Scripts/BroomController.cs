@@ -12,7 +12,7 @@ public class BroomController : MonoBehaviour
     public float baseMaxSpeed = 15f;
     public float acceleration = 8f;
     public float steeringSensitivity = 3f;
-    public float liftForce = 20f;
+    //public float liftForce = 20f;
     public float hoverHeight = 2f;
     public float verticalAcceleration = 10f;
     public float maxVerticalSpeed = 12f;
@@ -39,7 +39,6 @@ public class BroomController : MonoBehaviour
     [Header("Steal Settings")]
     public float stealDistance = 3f;
     public float stealCooldown = 5f;
-
     private float lastStealTime = -999f;
     private float lastLostBallTime = -999f;
 
@@ -146,6 +145,7 @@ public class BroomController : MonoBehaviour
     #endregion
 
     #region Input Handling
+
     void TryStealBall()
     {
         if (hasBall) return;
