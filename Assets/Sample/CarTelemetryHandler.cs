@@ -16,7 +16,7 @@ public class CarTelemetryHandler1 : MonoBehaviour
 
     [Header("Platform Settings")]
     private const float maxPlatformAngle = 15f;
-    private const float maxPlatformVelocity = 100f;
+    private const float maxPlatformVelocity = 200f;
     private float currentPitch = 0f;
     private float currentRoll = 0f;
     private float currentLinearAcceleration = 0f;
@@ -134,8 +134,9 @@ public class CarTelemetryHandler1 : MonoBehaviour
 
         currentAngularVelocity = Mathf.Lerp(currentAngularVelocity, Mathf.Clamp(localAngularVelocity.y, -maxPlatformVelocity, maxPlatformVelocity), 0.03f);
 
-        telemetryDataData.Angles = transform.eulerAngles;
-        telemetryDataData.Velocity = new Vector3(currentLinearAcceleration * 50, currentAngularVelocity * 160, 0);
+        //telemetryDataData.Angles = transform.eulerAngles;
+        //telemetryDataData.Velocity = new Vector3(currentLinearAcceleration * 30f, currentAngularVelocity * 640f, 0);
+        Debug.Log(currentAngularVelocity);
     }
 
     private void UpdatePlatformAngles()

@@ -949,11 +949,11 @@ MonoBehaviour:
   inputControllerReader: {fileID: 11400000, guid: 8268bb9eff5a1954492cd4817fb37528, type: 2}
   baseMaxSpeed: 15
   acceleration: 10
-  steeringSensitivity: 3
+  steeringSensitivity: 5
   hoverHeight: 2
   verticalAcceleration: 9
   maxVerticalSpeed: 10
-  steeringSpeed: 4
+  steeringSpeed: 5
   currentGear: 1
   gearShiftCooldown: 0.2
   team: 0
@@ -976,7 +976,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2a98f823557ab284492611b81aefc361, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  vehicleTransform: {fileID: 543450652473121241}
+  vehicleTransform: {fileID: 137422759}
   rb: {fileID: 198365199}
   enableHaptics: 1
   debugHaptics: 0
@@ -5398,7 +5398,7 @@ MonoBehaviour:
   stopDistanceFromGoal: 5
   stealCooldown: 7
   team: 1
-  moveSpeed: 7
+  moveSpeed: 8
   turnSpeed: 3
   scoringDistance: 10
   minThrowDistance: 2

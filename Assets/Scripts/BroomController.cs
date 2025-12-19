@@ -61,17 +61,7 @@ public class BroomController : MonoBehaviour
     private bool isRecoveringFromCollision;
     private float collisionRecoveryTimer;
 
-    // Gear System
-    private readonly GearSettings[] gearSettings = new GearSettings[]
-    {
-        new GearSettings { type = MovementType.Vertical,   description = "Вверх",       speedMultiplier = 1f },
-        new GearSettings { type = MovementType.Vertical,   description = "Вниз",        speedMultiplier = 1f },
-        new GearSettings { type = MovementType.Horizontal, description = "Медленно",    speedMultiplier = 0.5f },
-        new GearSettings { type = MovementType.Horizontal, description = "Средне",      speedMultiplier = 1.0f },
-        new GearSettings { type = MovementType.Horizontal, description = "Быстро",      speedMultiplier = 1.5f },
-        new GearSettings { type = MovementType.Horizontal, description = "Очень быстро",speedMultiplier = 2.0f },
-        new GearSettings { type = MovementType.Horizontal, description = "Назад",       speedMultiplier = -1.0f }
-    };
+
 
     #endregion
 
