@@ -61,7 +61,6 @@ public class CarTelemetryHandler1 : MonoBehaviour
                 continue;
             }
 
-            UpdatePlatformVelocity();
             UpdatePlatformAngles();
 
             if (enableHaptics)
@@ -118,36 +117,17 @@ public class CarTelemetryHandler1 : MonoBehaviour
         return angle;
     }
 
-    private void UpdatePlatformVelocity()
-    {
-        Vector3 globalLinearVelocity = rb.linearVelocity;
-        Vector3 localLinearVelocity = transform.InverseTransformVector(globalLinearVelocity);
-
-        float linearAcceleration = (localLinearVelocity.z - lastLinearVelocity) / Time.deltaTime;
-        lastLinearVelocity = localLinearVelocity.z;
-
-        linearAcceleration = Mathf.Clamp(linearAcceleration, -maxPlatformVelocity, maxPlatformVelocity);
-        currentLinearAcceleration = Mathf.Lerp(currentLinearAcceleration, linearAcceleration, 0.02f);
-
-        Vector3 globalAngularVelocity = rb.angularVelocity;
-        Vector3 localAngularVelocity = transform.InverseTransformVector(globalAngularVelocity);
-
-        currentAngularVelocity = Mathf.Lerp(currentAngularVelocity, Mathf.Clamp(localAngularVelocity.y, -maxPlatformVelocity, maxPlatformVelocity), 0.03f);
-
-        //telemetryDataData.Angles = transform.eulerAngles;
-        //telemetryDataData.Velocity = new Vector3(currentLinearAcceleration * 30f, currentAngularVelocity * 640f, 0);
-        Debug.Log(currentAngularVelocity);
-    }
-
     private void UpdatePlatformAngles()
     {
         float targetPitch = Mathf.Clamp(NormalizeAngle(vehicleTransform.eulerAngles.x), -maxPlatformAngle, maxPlatformAngle);
-        currentPitch = Mathf.Lerp(currentPitch, targetPitch, 0.04f);
+        currentPitch = Mathf.Lerp(currentPitch, targetPitch, 0.05f);
 
         float targetRoll = Mathf.Clamp(NormalizeAngle(vehicleTransform.eulerAngles.z), -maxPlatformAngle, maxPlatformAngle);
-        currentRoll = Mathf.Lerp(currentRoll, targetRoll, 0.04f);
+        currentRoll = Mathf.Lerp(currentRoll, targetRoll, 0.12f);
 
-        telemetryDataData.Angles = new Vector3(currentPitch, currentRoll, 0);
+        telemetryDataData.Angles = vehicleTransform.transform.eulerAngles;
+        telemetryDataData.Velocity = new Vector3(currentPitch *11f, currentRoll *11f, 0);
+        Debug.Log(telemetryDataData.Angles + "       " + telemetryDataData.Velocity);
     }
 
     private void OnCollisionEnter(Collision collision)
