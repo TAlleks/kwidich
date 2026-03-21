@@ -127,7 +127,7 @@ public class CarTelemetryHandler1 : MonoBehaviour
 
         telemetryDataData.Angles = vehicleTransform.transform.eulerAngles;
         telemetryDataData.Velocity = new Vector3(currentPitch *11f, currentRoll *11f, 0);
-        Debug.Log(telemetryDataData.Angles + "       " + telemetryDataData.Velocity);
+        //Debug.Log(telemetryDataData.Angles + "       " + telemetryDataData.Velocity);
     }
 
     private void OnCollisionEnter(Collision collision)

@@ -492,6 +492,39 @@
                     "isPartOfComposite": true
                 },
                 {
+                    "name": "1D Axis",
+                    "id": "8ee7ea18-5d36-4db0-ba45-0bdc7b5e81ac",
+                    "path": "1DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Steering_Steering",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "negative",
+                    "id": "ce9e83d2-a3cc-4923-8bdd-23dd497edac0",
+                    "path": "<XRController>{RightHand}/{PrimaryAxis}",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Steering_Steering",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "651350d4-9ae3-451c-86c5-09f4d9c534f8",
+                    "path": "",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Steering_Steering",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
                     "name": "",
                     "id": "a8fcf12e-ef1c-4c67-a48f-4aecbc425dd8",
                     "path": "<Logitech G29 Racing Wheel>/stick/x",

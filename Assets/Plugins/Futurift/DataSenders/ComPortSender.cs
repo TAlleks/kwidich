@@ -6,7 +6,7 @@ namespace Futurift.DataSenders
     public class ComPortSender : IDataSender
     {
         public bool IsConnected => _port.IsOpen;
-
+        int a = 0;
         public SerialPort Port => _port;
 
         private readonly SerialPort _port;

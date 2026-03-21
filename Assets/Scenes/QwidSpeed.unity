@@ -941,7 +941,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 919132148268335971}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2ae3f585d168c21478b41230cd4cfa93, type: 3}
   m_Name: 
@@ -8256,6 +8256,7 @@ GameObject:
   - component: {fileID: 198365198}
   - component: {fileID: 919132148268335972}
   - component: {fileID: 198365197}
+  - component: {fileID: 919132148268335974}
   - component: {fileID: 198365204}
   - component: {fileID: 919132148268335973}
   m_Layer: 3
@@ -8300,6 +8301,93 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp-firstpass::Futurift.SimpleController
   ipAddress: 127.0.0.1
   port: 6065
+--- !u!114 &919132148268335974
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 919132148268335971}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d386512dca616b74dbba54bd25e23cd8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuturiftMoving
+  rightThumbstick:
+    m_UseReference: 1
+    m_Action:
+      m_Name: Right Thumbstick
+      m_Type: 0
+      m_ExpectedControlType: 
+      m_Id: 3d5247f4-da4c-481a-90c4-e5b54bf598ae
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: a7d34062-6595-41c4-b5d4-a0499e869574
+        m_Path: <XRController>{RightHand}/thumbstick
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Right Thumbstick
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: -8666952849799569744, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  leftThumbstick:
+    m_UseReference: 1
+    m_Action:
+      m_Name: Left Thumbstick
+      m_Type: 0
+      m_ExpectedControlType: 
+      m_Id: 90f8d4ad-a3e7-41bb-9b6d-65a7e68da426
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: 14e2c52f-5173-421d-a153-253c9ce7e2a7
+        m_Path: <XRController>{LeftHand}/thumbstick
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Left Thumbstick
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: -60998027439631388, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  rightTrigger:
+    m_UseReference: 1
+    m_Action:
+      m_Name: Right Trigger
+      m_Type: 0
+      m_ExpectedControlType: 
+      m_Id: 852b6d58-4be0-4757-9af5-def5efba4c8f
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: a32b9966-2cd4-4230-af32-732ea8b5469a
+        m_Path: <XRController>{RightHand}/triggerPressed
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Right Trigger
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: 7904272356298805229, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  baseMaxSpeed: 15
+  acceleration: 10
+  steeringSensitivity: 4
+  hoverHeight: 2
+  verticalAcceleration: 9
+  maxVerticalSpeed: 10
+  steeringSpeed: 4
+  team: 0
+  broomModel: {fileID: 137422759}
+  rb: {fileID: 198365199}
+  quaffle: {fileID: 8649975352249936199}
+  hasBall: 0
+  pickupCooldown: 1
+  stealDistance: 3
+  stealCooldown: 1
 --- !u!1 &919132149368298912
 GameObject:
   m_ObjectHideFlags: 0
