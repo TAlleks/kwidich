@@ -1,6 +1,7 @@
 ﻿using Futurift.DataSenders;
 using Futurift.Options;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Futurift
 {
@@ -8,6 +9,9 @@ namespace Futurift
     {
         [SerializeField] private string ipAddress = "127.0.0.1";
         [SerializeField] private int port = 6065;
+
+        [Header("XR Input")]
+        [SerializeField] private InputActionProperty rightThumbstick; // движение + поворот
 
         private FutuRiftController _controller;
 
@@ -20,13 +24,20 @@ namespace Futurift
             };
 
             _controller = new FutuRiftController(new UdpPortSender(udpOptions));
+
+            rightThumbstick.action.Enable();
         }
         
         private void Update()
         {
+            Vector2 rightStick = rightThumbstick.action.ReadValue<Vector2>();
+            float steering = rightStick.x;
+            float input = rightStick.y;
+            input *= 15f;
+            steering *= 15f;
             var euler = transform.eulerAngles;
-            _controller.Pitch = (euler.x > 180 ? euler.x - 360 : euler.x);
-            _controller.Roll = (euler.z > 180 ? euler.z - 360 : euler.z);
+            _controller.Pitch = -input;
+            _controller.Roll = steering ;
         }
 
         private void OnEnable()

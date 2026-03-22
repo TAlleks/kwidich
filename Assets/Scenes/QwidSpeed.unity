@@ -8257,6 +8257,7 @@ GameObject:
   - component: {fileID: 919132148268335972}
   - component: {fileID: 198365197}
   - component: {fileID: 919132148268335974}
+  - component: {fileID: 919132148268335975}
   - component: {fileID: 198365204}
   - component: {fileID: 919132148268335973}
   m_Layer: 3
@@ -8301,6 +8302,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp-firstpass::Futurift.SimpleController
   ipAddress: 127.0.0.1
   port: 6065
+  rightThumbstick:
+    m_UseReference: 0
+    m_Action:
+      m_Name: Right Thumbstick
+      m_Type: 0
+      m_ExpectedControlType: 
+      m_Id: 152b332e-a6b0-45a9-a9b4-d2f24239684d
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings: []
+      m_Flags: 0
+    m_Reference: {fileID: 0}
 --- !u!114 &919132148268335974
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8388,6 +8401,32 @@ MonoBehaviour:
   pickupCooldown: 1
   stealDistance: 3
   stealCooldown: 1
+--- !u!114 &919132148268335975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 919132148268335971}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b38e4317c1f3429ba667e0e4e59637f5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp-firstpass::Futurift.SimpleController
+  ipAddress: 127.0.0.1
+  port: 6065
+  rightThumbstick:
+    m_UseReference: 1
+    m_Action:
+      m_Name: Right Thumbstick
+      m_Type: 0
+      m_ExpectedControlType: 
+      m_Id: f58f63be-0b0b-4a06-945b-18900a0157cc
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings: []
+      m_Flags: 0
+    m_Reference: {fileID: -8666952849799569744, guid: c348712bda248c246b8c49b3db54643f, type: 3}
 --- !u!1 &919132149368298912
 GameObject:
   m_ObjectHideFlags: 0
