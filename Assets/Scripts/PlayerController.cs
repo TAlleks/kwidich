@@ -17,7 +17,6 @@ public class AIPlayer : MonoBehaviour
 
     [Header("Steal Settings")]
     public float stealCooldown = 2f;
-    // ИЗМЕНЕНИЕ: делаем переменную статической
     private static float lastStealTime = -999f;
     private static float globalLastStealTime = -999f;
 
@@ -40,7 +39,6 @@ public class AIPlayer : MonoBehaviour
     public bool hasBall = false;
     private Quaffle currentQuaffle;
     private Transform currentTarget;
-
     private GoalRing[] allGoals;
 
 
@@ -50,18 +48,7 @@ public class AIPlayer : MonoBehaviour
         rb.useGravity = false;
         rb.linearDamping = 1f;
         rb.angularDamping = 3f;
-    }
-
-    void Start()
-    {
         allGoals = FindObjectsByType<GoalRing>(FindObjectsSortMode.None);
-        //Log("Инициализирован");
-    }
-
-    void Update()
-    {
-        RotateModel();
-
     }
 
     void FixedUpdate()
@@ -69,6 +56,7 @@ public class AIPlayer : MonoBehaviour
         MakeDecision();
         MoveToTarget();
         CheckActions();
+        RotateModel();
     }
 
     void MakeDecision()
@@ -76,19 +64,12 @@ public class AIPlayer : MonoBehaviour
         if (hasBall)
         {
             currentTarget = FindBestGoal();
-            //Log("Есть мяч → лечу к воротам");
             return;
         }
 
         if (Time.time >= lastThrowTime + pickupCooldown)
         {
             currentTarget = FindNearestFreeQuaffle();
-            //if (currentTarget != null)
-            //    Log("Ищу свободный мяч");
-        }
-        else
-        {
-            //Log("Кулдаун подбора — игнорирую мячи");
         }
 
         if (currentTarget != null) return;
@@ -99,9 +80,6 @@ public class AIPlayer : MonoBehaviour
         {
             currentTarget = FindPlayerWithBall();
         }
-
-        //if (currentTarget != null)
-        //    Log("Лечу к врагу с мячом");
     }
 
     void MoveToTarget()
@@ -113,13 +91,10 @@ public class AIPlayer : MonoBehaviour
         }
 
         float distance = Vector3.Distance(transform.position, currentTarget.position);
-
         if (hasBall && currentTarget.GetComponent<GoalRing>() != null)
         {
             if (distance <= stopDistanceFromGoal)
             {
-                //Log($"Останавливаюсь перед воротами (dist={distance:F1})");
-
                 rb.linearVelocity = Vector3.Lerp(
                     rb.linearVelocity,
                     Vector3.zero,
@@ -131,63 +106,21 @@ public class AIPlayer : MonoBehaviour
 
         Vector3 dir = (currentTarget.position - transform.position).normalized;
         rb.linearVelocity = dir * moveSpeed;
-
-        //Log($"Лечу к {currentTarget.name}, dist={distance:F1}");
     }
 
     void RotateModel()
     {
-
-
         if (currentTarget != null)
         {
             Vector3 lookDirection = currentTarget.transform.position - transform.position;
-            //lookDirection.y = 0f; // убираем наклон по вертикали
 
             if (lookDirection != Vector3.zero)
             {
                 transform.rotation = Quaternion.LookRotation(lookDirection);
             }
         }
-
     }
 
-    //void CheckActions()
-    //{
-    //    if (currentTarget == null) return;
-
-    //    AIPlayer targetBot = currentTarget.GetComponent<AIPlayer>();
-    //    if (!hasBall && targetBot != null && targetBot.hasBall)
-    //    {
-    //        float dist = Vector3.Distance(transform.position, currentTarget.position);
-
-    //        // ИЗМЕНЕНИЕ: используем globalLastStealTime
-    //        if (dist <= 3f && Time.time >= globalLastStealTime + stealCooldown)
-    //        {
-    //            StealBall(targetBot);
-    //            globalLastStealTime = Time.time; // Обновляем общую переменную
-    //        }
-    //    }
-
-    //    BroomController player = currentTarget.GetComponent<BroomController>();
-    //    if (!hasBall && player != null && player.hasBall)
-    //    {
-    //        float dist = Vector3.Distance(transform.position, currentTarget.position);
-
-    //        // ИЗМЕНЕНИЕ: используем globalLastStealTime
-    //        if (dist <= 3f && Time.time >= globalLastStealTime + stealCooldown)
-    //        {
-    //            Quaffle q = player.quaffle;
-    //            if (q != null)
-    //            {
-    //                player.SetHasBall(false, null);
-    //                q.TryPickup(transform);
-    //                globalLastStealTime = Time.time; // Обновляем общую переменную
-    //                Log("УКРАЛ мяч у игрока");
-    //            }
-    //        }
-    //    }
-    //}
     void CheckActions()
     {
         if (currentTarget == null) return;
@@ -197,9 +130,7 @@ public class AIPlayer : MonoBehaviour
         {
             float dist = Vector3.Distance(transform.position, currentTarget.position);
             if (dist <= 3f && Time.time >= lastStealTime + stealCooldown)
-
             {
-                //Log("Пытаюсь украсть мяч");
                 StealBall(targetBot);
                 lastStealTime = Time.time;
             }
@@ -218,40 +149,21 @@ public class AIPlayer : MonoBehaviour
                     lastStealTime = Time.time;
                     Log("УКРАЛ мяч у игрока");
                 }
-
             }
-
         }
 
         if (hasBall && currentTarget.GetComponent<GoalRing>() != null)
-
         {
-
             float dist = Vector3.Distance(transform.position, currentTarget.position);
-
-
-
             if (dist <= scoringDistance && dist >= minThrowDistance)
-
             {
-
-                //Log($"БРОСОК по воротам (dist={dist:F1})");
-
                 ThrowBall(currentTarget.position);
-
             }
-
         }
-
     }
     public Quaffle GetCurrentQuaffle()
     {
         return currentQuaffle;
-    }
-    // Добавим публичный метод, чтобы игрок тоже мог "запускать" этот кулдаун
-    public static void TriggerGlobalStealCooldown()
-    {
-        lastStealTime = Time.time;
     }
     void StealBall(AIPlayer targetBot)
     {
@@ -314,15 +226,15 @@ public class AIPlayer : MonoBehaviour
         {
             if (Time.time < lastThrowTime + pickupCooldown)
             {
-                //Log("❌ Не могу взять мяч — кулдаун");
+                //Log("Не могу взять мяч — кулдаун");
                 return;
             }
 
-            //Log("✅ Взял мяч");
+            //Log("Взял мяч");
         }
         else
         {
-            Log("❌ Потерял мяч");
+            Log("Потерял мяч");
         }
 
         hasBall = value;
@@ -354,7 +266,7 @@ public class AIPlayer : MonoBehaviour
     {
         if (!hasBall || currentQuaffle == null) return;
 
-        //Log("🏐 Бросаю мяч");
+        //Log("Бросаю мяч");
 
         Vector3 dir = (goalPos - transform.position).normalized;
         dir.y += 0.2f;
@@ -363,7 +275,7 @@ public class AIPlayer : MonoBehaviour
         {
             dir += Random.insideUnitSphere * 0.5f;
             dir.Normalize();
-            //Log("❗ Неточный бросок");
+            //Log("Неточный бросок");
         }
 
         currentQuaffle.Throw(dir);
