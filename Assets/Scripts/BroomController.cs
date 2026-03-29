@@ -1,7 +1,7 @@
 using LogitechG29.Sample.Input;
 using UnityEngine;
 
-public class BroomController : MonoBehaviour
+public class BroomController : MonoBehaviour, IPlayerController
 {
     #region Inspector Fields & Serialized Fields
 
@@ -41,6 +41,10 @@ public class BroomController : MonoBehaviour
     public float stealCooldown = 5f;
     private float lastStealTime = -999f;
     private float lastLostBallTime = -999f;
+    
+    [Header("Push Settings (Player)")]
+    public float pushForce = 15f;              // Сила толчка бота
+    public float pushUpwardForce = 5f;         // Вертикальная составляющая
 
     #endregion
 
@@ -71,6 +75,18 @@ public class BroomController : MonoBehaviour
     {
         InitializeBroom();
         _mainCamera = Camera.main;
+        
+        // Регистрируем игрока в менеджере
+        GameObjectManager.Instance.RegisterPlayer(this);
+    }
+
+    private void OnDestroy()
+    {
+        // Удаляем игрока из менеджера при уничтожении
+        if (GameObjectManager.Instance != null)
+        {
+            GameObjectManager.Instance.UnregisterPlayer();
+        }
     }
 
     void Update()
@@ -141,15 +157,15 @@ public class BroomController : MonoBehaviour
         if (hasBall) return;
         if (Time.time < lastStealTime + stealCooldown) return;
 
-        AIPlayer[] bots = FindObjectsByType<AIPlayer>(FindObjectsSortMode.None);
+        var bots = GameObjectManager.Instance.GetAllBots();
 
         foreach (var bot in bots)
         {
             if (!bot.hasBall) continue;
 
-            float dist = Vector3.Distance(transform.position, bot.transform.position);
+            float sqrDist = (transform.position - bot.transform.position).sqrMagnitude;
 
-            if (dist < stealDistance)
+            if (sqrDist < stealDistance * stealDistance) // Используем sqrMagnitude для оптимизации
             {
                 StealBall(bot);
                 lastStealTime = Time.time;
@@ -165,10 +181,21 @@ public class BroomController : MonoBehaviour
         Quaffle q = targetBot.GetCurrentQuaffle();
         if (q != null)
         {
+            // ТОЛЧОК БОТА игроком
+            Vector3 pushDirection = (targetBot.transform.position - transform.position).normalized;
+            pushDirection.y = pushUpwardForce / pushForce;
+            
+            if (targetBot.rb != null)
+            {
+                targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
+                Debug.Log($"[BroomController] ТОЛКНУЛ бота {targetBot.name} с силой {pushForce}");
+            }
+            
+            // Забираем мяч
             targetBot.SetHasBall(false, null);
             SetHasBall(true, q);
             quaffle.holder = gameObject.transform;
-            Debug.Log("[Broom] 💥 Украл мяч у AI");
+            Debug.Log("[BroomController] Украл мяч у бота");
         }
     }
 
@@ -198,7 +225,9 @@ public class BroomController : MonoBehaviour
     {
         if (inputControllerReader == null) return;
 
-        if (inputControllerReader.Clutch >= 0.8f && hasBall && quaffle != null && quaffle.isHeld)
+        // Упрощенная проверка: полагаемся только на hasBall и quaffle != null
+        // Убрана проверка quaffle.isHeld для избежания рассинхронизации состояний
+        if (inputControllerReader.Clutch >= 0.8f && hasBall && quaffle != null)
         {
             ThrowBall();
         }
@@ -206,7 +235,11 @@ public class BroomController : MonoBehaviour
 
     void ThrowBall()
     {
-        if (quaffle == null || !quaffle.isHeld) return;
+        if (quaffle == null || !quaffle.isHeld)
+        {
+            Debug.LogWarning($"[BroomController] Не могу бросить: quaffle={quaffle}, isHeld={quaffle?.isHeld}", this);
+            return;
+        }
 
         Vector3 throwDirection;
 
@@ -227,6 +260,8 @@ public class BroomController : MonoBehaviour
 
         lastThrowTime = Time.time;
         SetHasBall(false, null);
+        
+        Debug.Log("[BroomController] Мяч брошен успешно", this);
     }
 
     public void SetHasBall(bool value, Quaffle incomingQuaffle)
@@ -235,15 +270,15 @@ public class BroomController : MonoBehaviour
         {
             if (Time.time < lastThrowTime + pickupCooldown)
             {
-                //Log("❌ Не могу взять мяч — кулдаун");
+                Debug.LogWarning($"[BroomController] Cooldown активен: {Time.time - lastThrowTime:F2}s < {pickupCooldown}s", this);
                 return;
             }
-            //Log("✅ Взял мяч");
+            Debug.Log($"[BroomController] Взял мяч: {incomingQuaffle?.name}", this);
         }
         else
         {
             lastLostBallTime = Time.time;
-            Log("❌ Бросил / Потерял мяч");
+            Log("Бросил / Потерял мяч");
         }
 
         hasBall = value;
@@ -254,6 +289,15 @@ public class BroomController : MonoBehaviour
     {
         Debug.Log($"[BroomLogic] {message}", this);
     }
+
+    #endregion
+
+    #region IPlayerController Implementation
+
+    public bool HasBall => hasBall;
+    public Quaffle CurrentQuaffle => quaffle;
+    public Team Team => team;
+    public Transform Transform => transform;
 
     #endregion
 

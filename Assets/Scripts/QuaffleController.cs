@@ -25,6 +25,18 @@ public class Quaffle : MonoBehaviour
         rb.angularDamping = 2f;
         startPos = transform.position;
         startRot = transform.rotation;
+        
+        // Регистрируем мяч в менеджере
+        GameObjectManager.Instance.RegisterQuaffle(this);
+    }
+
+    void OnDestroy()
+    {
+        // Удаляем мяч из менеджера при уничтожении
+        if (GameObjectManager.Instance != null)
+        {
+            GameObjectManager.Instance.UnregisterQuaffle(this);
+        }
     }
 
     void Update()
@@ -55,33 +67,29 @@ public class Quaffle : MonoBehaviour
     {
         if (Time.time < canBePickedUpTime) return;
 
-        bool newIsPlayer = newHolder.GetComponentInParent<BroomController>() != null;
+        IPlayerController newPlayer = newHolder.GetComponentInParent<IPlayerController>();
         bool newIsAI = newHolder.GetComponentInParent<AIPlayer>() != null;
 
         if (isHeld && holder != null)
         {
-            bool currentIsPlayer = holder.GetComponentInParent<BroomController>() != null;
+            IPlayerController currentPlayer = holder.GetComponentInParent<IPlayerController>();
             bool currentIsAI = holder.GetComponentInParent<AIPlayer>() != null;
 
             // Если сейчас мяч у игрока
-            if (currentIsPlayer)
+            if (currentPlayer != null && !currentIsAI)
             {
                 // Позволяем только ИИ (боту) отобрать мяч у игрока
                 if (!newIsAI)
                     return;
 
                 // Снимем флаг у игрока — отбирают ботом
-                BroomController player = holder.GetComponentInParent<BroomController>();
-                if (player != null)
-                {
-                    player.SetHasBall(false, null);
-                }
+                currentPlayer.SetHasBall(false, null);
             }
             // Если сейчас мяч у бота
             else if (currentIsAI)
             {
                 // Если новый держатель — игрок, позволяем (игрок подбирает)
-                if (newIsPlayer)
+                if (newPlayer != null && !newIsAI)
                 {
                     AIPlayer ai = holder.GetComponentInParent<AIPlayer>();
                     if (ai != null) ai.SetHasBall(false, null);
@@ -103,11 +111,11 @@ public class Quaffle : MonoBehaviour
         rb.useGravity = false;
         col.gameObject.SetActive(false);
 
-        BroomController broom = newHolder.GetComponentInParent<BroomController>();
-        if (broom != null)
+        IPlayerController playerController = newHolder.GetComponentInParent<IPlayerController>();
+        if (playerController != null && !newIsAI)
         {
             rb.mass = 0;
-            broom.SetHasBall(true, this);
+            playerController.SetHasBall(true, this);
             return;
         }
 
@@ -135,6 +143,13 @@ public class Quaffle : MonoBehaviour
 
     public void Throw(Vector3 direction)
     {
+        // Защита от повторного броска
+        if (!isHeld)
+        {
+            Debug.LogWarning("[Quaffle] Попытка бросить мяч, который не удерживается!", this);
+            return;
+        }
+
         isHeld = false;
         holder = null;
         rb.isKinematic = false;
@@ -142,6 +157,8 @@ public class Quaffle : MonoBehaviour
         canBePickedUpTime = Time.time + 1f;
         col.gameObject.SetActive(true);
         rb.AddForce(direction * throwForce, ForceMode.Impulse);
+        
+        Debug.Log("[Quaffle] Мяч брошен успешно", this);
     }
 
     public void Respawn()
@@ -160,10 +177,10 @@ public class Quaffle : MonoBehaviour
         if (Time.time < canBePickedUpTime || isHeld) return;
 
         Transform root = other.transform.root;
-        BroomController broom = root.GetComponentInChildren<BroomController>();
-        if (broom != null)
+        IPlayerController player = root.GetComponentInChildren<IPlayerController>();
+        if (player != null)
         {
-            TryPickup(broom.transform);
+            TryPickup(player.Transform);
             return;
         }
 

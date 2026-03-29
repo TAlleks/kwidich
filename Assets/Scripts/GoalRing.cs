@@ -19,17 +19,29 @@ public class GoalRing : MonoBehaviour
 
         audioSource.playOnAwake = false;
         //audioSource.spatialBlend = 1f;
+        
+        // Р РµРіРёСЃС‚СЂРёСЂСѓРµРј РІРѕСЂРѕС‚Р° РІ РјРµРЅРµРґР¶РµСЂРµ
+        GameObjectManager.Instance.RegisterGoal(this);
+    }
+
+    private void OnDestroy()
+    {
+        // РЈРґР°Р»СЏРµРј РІРѕСЂРѕС‚Р° РёР· РјРµРЅРµРґР¶РµСЂР° РїСЂРё СѓРЅРёС‡С‚РѕР¶РµРЅРёРё
+        if (GameObjectManager.Instance != null)
+        {
+            GameObjectManager.Instance.UnregisterGoal(this);
+        }
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        // Триггер должен срабатывать, когда любой коллайдер мяча входит в триггер кольца.
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ.
         if (!other.CompareTag("Quaffle")) return;
 
         Quaffle quaffle = other.GetComponent<Quaffle>();
         if (quaffle == null) return;
 
-        // Гол засчитывается только если мяч в свободном состоянии (не в руках).
+        // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ).
         if (quaffle.isHeld) return;
 
         if (goalSound != null && audioSource != null && scoreManager.playerScore != scoreManager.maxScore)
@@ -37,7 +49,7 @@ public class GoalRing : MonoBehaviour
             audioSource.PlayOneShot(goalSound);
         }
 
-        Debug.Log($"[GoalRing] Гол! Команда: {scoredTeam}", this);
+        Debug.Log($"[GoalRing] пїЅпїЅпїЅ! пїЅпїЅпїЅпїЅпїЅпїЅпїЅ: {scoredTeam}", this);
         GameScoreManager.Instance?.AddGoal(scoredTeam);
     }
 

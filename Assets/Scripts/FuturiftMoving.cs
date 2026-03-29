@@ -4,14 +4,14 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 using LogitechG29.Sample.Input;
 
-public class FuturiftMoving : MonoBehaviour
+public class FuturiftMoving : MonoBehaviour, IPlayerController
 {
     #region Inspector Fields & Serialized Fields
 
     [Header("XR Input")]
-    [SerializeField] private InputActionProperty rightThumbstick; // движение + поворот
-    [SerializeField] private InputActionProperty leftThumbstick;  // вверх/вниз
-    [SerializeField] private InputActionProperty rightTrigger;    // бросок 
+    [SerializeField] private InputActionProperty rightThumbstick; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ + пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    [SerializeField] private InputActionProperty leftThumbstick;  // пїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅ
+    [SerializeField] private InputActionProperty rightTrigger;    // пїЅпїЅпїЅпїЅпїЅпїЅ 
     float triggerValue = 0f;
     [Header("Broom Physics")]
     public float baseMaxSpeed = 15f;
@@ -33,20 +33,24 @@ public class FuturiftMoving : MonoBehaviour
     private Camera _mainCamera;
 
     [Header("Ball Interaction")]
-    public Quaffle quaffle; // Текущий мяч в руках
-    public bool hasBall = false; // Флаг: есть ли мяч
-    public float pickupCooldown = 1.0f; // Задержка перед повторным подбором
+    public Quaffle quaffle; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ
+    public bool hasBall = false; // пїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅ
+    public float pickupCooldown = 1.0f; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     [Header("Steal Settings")]
     public float stealDistance = 3f;
     public float stealCooldown = 5f;
     private float lastStealTime = -999f;
     private float lastLostBallTime = -999f;
+    
+    [Header("Push Settings (Player)")]
+    public float pushForce = 15f;              // РЎРёР»Р° С‚РѕР»С‡РєР° Р±РѕС‚Р°
+    public float pushUpwardForce = 5f;         // Р’РµСЂС‚РёРєР°Р»СЊРЅР°СЏ СЃРѕСЃС‚Р°РІР»СЏСЋС‰Р°СЏ
 
     #endregion
 
     #region Private Fields
     // Ball Logic
-    private float lastThrowTime; // Время последнего броска
+    private float lastThrowTime; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     // Steering
     private float currentSteeringAngle;
     private float targetSteeringAngle;
@@ -73,6 +77,18 @@ public class FuturiftMoving : MonoBehaviour
     {
         InitializeBroom();
         _mainCamera = Camera.main;
+        
+        // Р РµРіРёСЃС‚СЂРёСЂСѓРµРј РёРіСЂРѕРєР° РІ РјРµРЅРµРґР¶РµСЂРµ
+        GameObjectManager.Instance.RegisterPlayer(this);
+    }
+
+    private void OnDestroy()
+    {
+        // РЈРґР°Р»СЏРµРј РёРіСЂРѕРєР° РёР· РјРµРЅРµРґР¶РµСЂР° РїСЂРё СѓРЅРёС‡С‚РѕР¶РµРЅРёРё
+        if (GameObjectManager.Instance != null)
+        {
+            GameObjectManager.Instance.UnregisterPlayer();
+        }
     }
 
     void Update()
@@ -100,7 +116,7 @@ public class FuturiftMoving : MonoBehaviour
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody>();
-            Debug.LogWarning("Rigidbody добавлен динамически к " + name);
+            Debug.LogWarning("Rigidbody пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ " + name);
         }
 
         rb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -109,7 +125,7 @@ public class FuturiftMoving : MonoBehaviour
 
         flightDirection = transform.forward;
 
-        // Устанавливаем начальную высоту
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         SetInitialHeight();
         stableHeight = transform.position.y;
     }
@@ -135,15 +151,15 @@ public class FuturiftMoving : MonoBehaviour
         if (hasBall) return;
         if (Time.time < lastStealTime + stealCooldown) return;
 
-        AIPlayer[] bots = FindObjectsByType<AIPlayer>(FindObjectsSortMode.None);
+        var bots = GameObjectManager.Instance.GetAllBots();
 
         foreach (var bot in bots)
         {
             if (!bot.hasBall) continue;
 
-            float dist = Vector3.Distance(transform.position, bot.transform.position);
+            float sqrDist = (transform.position - bot.transform.position).sqrMagnitude;
 
-            if (dist < stealDistance)
+            if (sqrDist < stealDistance * stealDistance) // РСЃРїРѕР»СЊР·СѓРµРј sqrMagnitude РґР»СЏ РѕРїС‚РёРјРёР·Р°С†РёРё
             {
                 StealBall(bot);
                 lastStealTime = Time.time;
@@ -159,10 +175,21 @@ public class FuturiftMoving : MonoBehaviour
         Quaffle q = targetBot.GetCurrentQuaffle();
         if (q != null)
         {
+            // РўРћР›Р§РћРљ Р‘РћРўРђ РёРіСЂРѕРєРѕРј
+            Vector3 pushDirection = (targetBot.transform.position - transform.position).normalized;
+            pushDirection.y = pushUpwardForce / pushForce;
+            
+            if (targetBot.rb != null)
+            {
+                targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
+                Debug.Log($"[FuturiftMoving] РўРћР›РљРќРЈР› Р±РѕС‚Р° {targetBot.name} СЃ СЃРёР»РѕР№ {pushForce}");
+            }
+            
+            // Р—Р°Р±РёСЂР°РµРј РјСЏС‡
             targetBot.SetHasBall(false, null);
             SetHasBall(true, q);
             quaffle.holder = gameObject.transform;
-            Debug.Log("[Broom] Украл мяч у AI");
+            Debug.Log("[FuturiftMoving] РЈРєСЂР°Р» РјСЏС‡ Сѓ Р±РѕС‚Р°");
         }
     }
 
@@ -171,7 +198,7 @@ public class FuturiftMoving : MonoBehaviour
         Vector2 rightStick = rightThumbstick.action.ReadValue<Vector2>();
         Vector2 leftStick = leftThumbstick.action.ReadValue<Vector2>();
         triggerValue = rightTrigger.action.ReadValue<float>();
-        Debug.Log(triggerValue);
+        //Debug.Log(triggerValue);
         //Debug.Log(rightThumbstick.action);  
         //Debug.Log(rightThumbstick.action.phase);
         //Debug.Log(rightStick);
@@ -179,7 +206,7 @@ public class FuturiftMoving : MonoBehaviour
         if (rightStick.magnitude < 0.1f) rightStick = Vector2.zero;
         if (leftStick.magnitude < 0.1f) leftStick = Vector2.zero;
 
-        // === ПРАВЫЙ СТИК (ГОРИЗОНТАЛЬ) ===
+        // === пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ) ===
         float steering = rightStick.x;
         float input = rightStick.y;
 
@@ -196,8 +223,12 @@ public class FuturiftMoving : MonoBehaviour
 
     void ThrowBallInput()
     {
-        if (!hasBall || quaffle == null || !quaffle.isHeld)
+        // РЈРїСЂРѕС‰РµРЅРЅР°СЏ РїСЂРѕРІРµСЂРєР°: РїРѕР»Р°РіР°РµРјСЃСЏ С‚РѕР»СЊРєРѕ РЅР° hasBall Рё quaffle != null
+        // РЈР±СЂР°РЅР° РїСЂРѕРІРµСЂРєР° quaffle.isHeld РґР»СЏ РёР·Р±РµР¶Р°РЅРёСЏ СЂР°СЃСЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё СЃРѕСЃС‚РѕСЏРЅРёР№
+        if (!hasBall || quaffle == null)
+        {
             return;
+        }
 
         bool isPressed = triggerValue > 0.8f;
 
@@ -209,7 +240,11 @@ public class FuturiftMoving : MonoBehaviour
 
     void ThrowBall()
     {
-        if (quaffle == null || !quaffle.isHeld) return;
+        if (quaffle == null || !quaffle.isHeld)
+        {
+            Debug.LogWarning($"[FuturiftMoving] РќРµ РјРѕРіСѓ Р±СЂРѕСЃРёС‚СЊ: quaffle={quaffle}, isHeld={quaffle?.isHeld}", this);
+            return;
+        }
 
         Vector3 throwDirection;
 
@@ -230,6 +265,8 @@ public class FuturiftMoving : MonoBehaviour
 
         lastThrowTime = Time.time;
         SetHasBall(false, null);
+        
+        Debug.Log("[FuturiftMoving] РњСЏС‡ Р±СЂРѕС€РµРЅ СѓСЃРїРµС€РЅРѕ", this);
     }
 
     public void SetHasBall(bool value, Quaffle incomingQuaffle)
@@ -238,15 +275,15 @@ public class FuturiftMoving : MonoBehaviour
         {
             if (Time.time < lastThrowTime + pickupCooldown)
             {
-                //Log(" Не могу взять мяч — кулдаун");
+                Debug.LogWarning($"[FuturiftMoving] Cooldown Р°РєС‚РёРІРµРЅ: {Time.time - lastThrowTime:F2}s < {pickupCooldown}s", this);
                 return;
             }
-            //Log("Взял мяч");
+            Debug.Log($"[FuturiftMoving] Р’Р·СЏР» РјСЏС‡: {incomingQuaffle?.name}", this);
         }
         else
         {
             lastLostBallTime = Time.time;
-            Log("Бросил / Потерял мяч");
+            Log("Р‘СЂРѕСЃРёР» / РџРѕС‚РµСЂСЏР» РјСЏС‡");
         }
 
         hasBall = value;
@@ -257,6 +294,15 @@ public class FuturiftMoving : MonoBehaviour
     {
         Debug.Log($"[BroomLogic] {message}", this);
     }
+
+    #endregion
+
+    #region IPlayerController Implementation
+
+    public bool HasBall => hasBall;
+    public Quaffle CurrentQuaffle => quaffle;
+    public Team Team => team;
+    public Transform Transform => transform;
 
     #endregion
 
@@ -290,7 +336,7 @@ public class FuturiftMoving : MonoBehaviour
 
         if (Mathf.Abs(currentSpeed) < 0.1f)
         {
-            // Медленно возвращаемся в нейтраль
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             targetTilt = Quaternion.identity;
         }
         else
@@ -320,7 +366,7 @@ public class FuturiftMoving : MonoBehaviour
 
         float speedSign = Mathf.Sign(currentSpeed);
 
-        // Руль: при движении назад инвертируем поворот (как у машины)
+        // пїЅпїЅпїЅпїЅ: пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
         float turnRate =
             currentSteeringAngle *
             steeringSensitivity *
@@ -329,11 +375,11 @@ public class FuturiftMoving : MonoBehaviour
 
         Quaternion turnRot = Quaternion.Euler(0f, turnRate, 0f);
 
-        // Поворачиваем направление носа
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         flightDirection = turnRot * flightDirection;
         flightDirection.Normalize();
 
-        // ВАЖНО: скорость может быть отрицательной — это и есть движение назад
+        // пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         Vector3 velocity = flightDirection * currentSpeed;
 
         rb.linearVelocity = new Vector3(
@@ -342,7 +388,7 @@ public class FuturiftMoving : MonoBehaviour
             velocity.z
         );
 
-        // ВСЕГДА смотрим вперёд, НИКОГДА не разворачиваем при заднем ходе
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         Quaternion targetRot = Quaternion.LookRotation(flightDirection, Vector3.up);
 
         rb.MoveRotation(
