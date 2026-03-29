@@ -22,20 +22,28 @@ public class AIPlayer : MonoBehaviour
 
     [Header("Team Role")]
     public BotRole role = BotRole.Attacker;
-    public float roleChangeInterval = 15f;
+    public float roleChangeInterval = 999999f; // Отключить автосмену ролей
     private float nextRoleChangeTime = 0f;
 
     [Header("Goal Approach")]
     public float stopDistanceFromGoal = 12f;
 
+    [Header("Defender Settings")]
+    public float defenderMaxDistance = 50f;     // Половина поля (100/2) - граница, за которую не может заходить
+    public float defenderPredictionRange = 30f; // Дистанция предиктивного перехвата
+    private Vector3 homeGoalPosition;           // Позиция своих ворот
+    private Vector3 fieldCenter;                // Центр поля (граница для визуализации)
+
     [Header("Steal Settings")]
-    public float stealCooldown = 2f;
+    public float stealCooldown = 2f;                    // Базовый cooldown (для Attacker)
+    public float stealFromPlayerCooldown = 5f;          // Отдельный cooldown для игрока
     private static float lastStealTime = -999f;
+    private float lastStealFromPlayerTime = -999f;      // Отдельный таймер для игрока
     
     [Header("Push Settings")]
-    public float pushForce = 15f;              // Сила толчка (сильный)
-    public float pushUpwardForce = 5f;         // Вертикальная составляющая
-    public bool canPushPlayer = false;         // Может ли толкать игрока (для безопасности в капсуле)
+    public float pushForce = 25f;              // Сила толчка (увеличено с 15 до 25)
+    public float pushUpwardForce = 8f;         // Вертикальная составляющая (увеличено с 5 до 8)
+    public bool canPushPlayer = true;          // Может ли толкать игрока (включено по умолчанию)
 
     [Header("Settings")]
     public Team team = Team.Enemy;
@@ -46,18 +54,14 @@ public class AIPlayer : MonoBehaviour
     public float throwChance = 0.85f;
 
     [Header("Avoidance")]
-    public float avoidanceRadius = 5f;         // Радиус обнаружения других ботов
-    public float avoidanceForce = 3f;          // Сила избегания
-    public float separationWeight = 1.5f;      // Вес разделения
+    public float avoidanceRadius = 3f;         // Радиус обнаружения других ботов (МАКСИМУМ 3!)
+    public float avoidanceForce = 2f;          // Сила избегания
+    public float separationWeight = 1.0f;      // Вес разделения
     public LayerMask botLayer;                 // Слой ботов для обнаружения
 
     [Header("Target Offset")]
-    public float targetOffsetRadius = 3f;      // Радиус разброса вокруг цели
+    public float targetOffsetRadius = 1f;      // Радиус разброса вокруг цели (уменьшено с 3 до 1)
     private Vector3 targetOffset;              // Персональный offset
-
-    [Header("Trajectory Prediction")]
-    public bool usePrediction = true;          // Использовать предсказание траектории
-    public float predictionTime = 1.5f;        // Время предсказания (секунды)
 
     [Header("Pickup Settings")]
     public float pickupCooldown = 2f;
@@ -96,6 +100,34 @@ public class AIPlayer : MonoBehaviour
         
         // Устанавливаем время смены роли
         nextRoleChangeTime = Time.time + roleChangeInterval;
+        
+        // Найти свои ворота для Defender
+        if (role == BotRole.Defender)
+        {
+            GoalRing[] goals = FindObjectsByType<GoalRing>(FindObjectsSortMode.None);
+            foreach (var goal in goals)
+            {
+                if (goal.GetScoredTeam() != team) // Наши ворота (которые мы защищаем)
+                {
+                    homeGoalPosition = goal.transform.position;
+                    
+                    // Рассчитываем центр поля (граница для Defender)
+                    // Находим противоположные ворота
+                    foreach (var enemyGoal in goals)
+                    {
+                        if (enemyGoal.GetScoredTeam() == team) // Ворота противника
+                        {
+                            // Центр поля = середина между воротами
+                            fieldCenter = (homeGoalPosition + enemyGoal.transform.position) / 2f;
+                            break;
+                        }
+                    }
+                    
+                    Log($"Defender инициализирован. Домашние ворота: {homeGoalPosition}, Центр поля: {fieldCenter}");
+                    break;
+                }
+            }
+        }
     }
 
     void OnDestroy()
@@ -159,23 +191,20 @@ public class AIPlayer : MonoBehaviour
 
     void MakeAttackerDecision()
     {
-        // Агрессивно идет за мячом
-        if (Time.time >= lastThrowTime + pickupCooldown)
+        // ВСЕГДА ищем мяч (свободный или у кого-то)
+        // Убрана проверка pickupCooldown - атакуем постоянно!
+        
+        currentTarget = FindNearestFreeQuaffle();
+        
+        if (currentTarget != null)
         {
-            currentTarget = FindNearestFreeQuaffle();
-            
-            // Генерируем новый offset при выборе новой цели
-            if (currentTarget != null)
-            {
-                GenerateNewTargetOffset();
-            }
+            GenerateNewTargetOffset();
+            return;
         }
-
-        if (currentTarget != null) return;
-
-        // Если нет свободного мяча, идем красть
+        
+        // Если нет свободного - идем красть
         currentTarget = FindNearestBotWithBall();
-
+        
         if (currentTarget == null)
         {
             currentTarget = FindPlayerWithBall();
@@ -184,30 +213,104 @@ public class AIPlayer : MonoBehaviour
 
     void MakeDefenderDecision()
     {
-        // Защищает свои ворота, перехватывает противников
+        // 1. Проверяем, не слишком ли далеко мы от ворот
+        float distanceFromHome = Vector3.Distance(transform.position, homeGoalPosition);
+        
+        // Если слишком далеко - возвращаемся к воротам (не преследуем цели)
+        if (distanceFromHome > defenderMaxDistance)
+        {
+            currentTarget = null; // Вернемся к воротам через MoveToTarget
+            Log("Defender слишком далеко от ворот - возвращаюсь");
+            return;
+        }
+        
+        // 2. ПРЕДИКТИВНЫЙ ПЕРЕХВАТ: Ищем врагов с мячом, движущихся к нашим воротам
         Transform enemyWithBall = FindNearestBotWithBall();
         
         if (enemyWithBall != null)
         {
-            currentTarget = enemyWithBall;
-            return;
-        }
-
-        // Если нет угрозы, ищем свободный мяч
-        if (Time.time >= lastThrowTime + pickupCooldown)
-        {
-            currentTarget = FindNearestFreeQuaffle();
-            if (currentTarget != null)
+            // Проверяем расстояние врага от наших ворот
+            float enemyDistanceFromGoal = Vector3.Distance(homeGoalPosition, enemyWithBall.position);
+            
+            // Если враг в зоне угрозы (в пределах defenderPredictionRange от ворот)
+            if (enemyDistanceFromGoal < defenderPredictionRange)
             {
-                GenerateNewTargetOffset();
+                // ПРЕДИКТ: Рассчитываем точку перехвата
+                Vector3 interceptPoint = CalculateInterceptPoint(enemyWithBall);
+                
+                // Проверяем, не выходит ли точка перехвата за границу
+                float interceptDistance = Vector3.Distance(homeGoalPosition, interceptPoint);
+                
+                if (interceptDistance < defenderMaxDistance)
+                {
+                    currentTarget = enemyWithBall;
+                    Log($"Defender перехватывает врага на расстоянии {enemyDistanceFromGoal:F1}м от ворот");
+                    return;
+                }
             }
         }
+        
+        // 3. Ищем игрока с мячом (если он угроза)
+        Transform playerWithBall = FindPlayerWithBall();
+        if (playerWithBall != null)
+        {
+            float playerDistanceFromGoal = Vector3.Distance(homeGoalPosition, playerWithBall.position);
+            
+            if (playerDistanceFromGoal < defenderPredictionRange)
+            {
+                float interceptDistance = Vector3.Distance(homeGoalPosition, 
+                    CalculateInterceptPoint(playerWithBall));
+                
+                if (interceptDistance < defenderMaxDistance)
+                {
+                    currentTarget = playerWithBall;
+                    Log($"Defender перехватывает игрока на расстоянии {playerDistanceFromGoal:F1}м от ворот");
+                    return;
+                }
+            }
+        }
+        
+        // 4. Если нет угрозы - патрулируем около ворот (остаемся на месте)
+        currentTarget = null;
+        Log("Defender патрулирует около ворот");
+    }
+    
+    // НОВЫЙ МЕТОД: Расчет точки перехвата
+    Vector3 CalculateInterceptPoint(Transform target)
+    {
+        if (target == null) return transform.position;
+        
+        // Получаем скорость цели
+        Rigidbody targetRb = target.GetComponent<Rigidbody>();
+        Vector3 targetVelocity = targetRb != null ? targetRb.linearVelocity : Vector3.zero;
+        
+        // Если цель не движется - возвращаем её текущую позицию
+        if (targetVelocity.magnitude < 0.5f)
+        {
+            return target.position;
+        }
+        
+        // Простой предикт: позиция цели через 1 секунду
+        Vector3 predictedPosition = target.position + targetVelocity * 1f;
+        
+        return predictedPosition;
     }
 
     void MakeSupportDecision()
     {
-        // Поддержка, занимает стратегическую позицию
-        if (Time.time >= lastThrowTime + pickupCooldown)
+        // Приоритет: красть у противников
+        currentTarget = FindNearestBotWithBall();
+        
+        if (currentTarget != null)
+        {
+            return;
+        }
+        
+        // Если некого грабить - идем за игроком
+        currentTarget = FindPlayerWithBall();
+        
+        // В крайнем случае - свободный мяч
+        if (currentTarget == null)
         {
             currentTarget = FindNearestFreeQuaffle();
             if (currentTarget != null)
@@ -215,11 +318,6 @@ public class AIPlayer : MonoBehaviour
                 GenerateNewTargetOffset();
             }
         }
-
-        if (currentTarget != null) return;
-
-        // Если нет мяча, следим за игроком
-        currentTarget = FindPlayerWithBall();
     }
 
     void ChangeRoleRandomly()
@@ -228,6 +326,38 @@ public class AIPlayer : MonoBehaviour
         int randomRole = Random.Range(0, 3);
         role = (BotRole)randomRole;
         Log($"Сменил роль на {role}");
+    }
+    
+    // Получить cooldown кражи у ботов в зависимости от роли
+    float GetStealCooldownForRole()
+    {
+        switch (role)
+        {
+            case BotRole.Attacker:
+                return 2f;      // Самый агрессивный
+            case BotRole.Support:
+                return 2.5f;    // Средний
+            case BotRole.Defender:
+                return 3f;      // Самый осторожный
+            default:
+                return stealCooldown;
+        }
+    }
+
+    // Получить cooldown кражи у игрока в зависимости от роли
+    float GetStealFromPlayerCooldownForRole()
+    {
+        switch (role)
+        {
+            case BotRole.Attacker:
+                return 5f;      // Часто атакует игрока
+            case BotRole.Support:
+                return 4f;      // Средняя частота
+            case BotRole.Defender:
+                return 6f;      // Редко атакует игрока
+            default:
+                return stealFromPlayerCooldown;
+        }
     }
 
     #endregion
@@ -238,11 +368,25 @@ public class AIPlayer : MonoBehaviour
     {
         if (currentTarget == null)
         {
+            // Для Defender - возвращаемся к воротам
+            if (role == BotRole.Defender)
+            {
+                float distanceFromHome = Vector3.Distance(transform.position, homeGoalPosition);
+                
+                if (distanceFromHome > 5f) // Если далеко от ворот
+                {
+                    Vector3 dirToHome = (homeGoalPosition - transform.position).normalized;
+                    rb.linearVelocity = dirToHome * (moveSpeed * 0.5f); // Медленно возвращаемся
+                    Log($"Defender возвращается к воротам (расстояние: {distanceFromHome:F1}м)");
+                    return;
+                }
+            }
+            
             rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, Vector3.zero, Time.fixedDeltaTime * 3f);
             return;
         }
 
-        // Целевая позиция с учетом предсказания и offset
+        // Целевая позиция с учетом offset
         Vector3 targetPosition = CalculateTargetPosition();
         
         // Направление к цели
@@ -251,11 +395,9 @@ public class AIPlayer : MonoBehaviour
         // Избегание других ботов
         Vector3 avoidance = CalculateAvoidance();
         
-        // Комбинированное направление
-        Vector3 finalDir = (dirToTarget + avoidance).normalized;
-        
-        // Динамическая скорость
-        float dynamicSpeed = CalculateDynamicSpeed();
+        // Комбинированное направление с ограничением силы avoidance
+        Vector3 avoidanceLimited = Vector3.ClampMagnitude(avoidance, 0.3f);
+        Vector3 finalDir = (dirToTarget + avoidanceLimited).normalized;
         
         // Проверка близости к цели (замедление)
         float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
@@ -278,24 +420,17 @@ public class AIPlayer : MonoBehaviour
         if (distanceToTarget < 3f)
         {
             float speedMultiplier = Mathf.Clamp01(distanceToTarget / 3f);
-            rb.linearVelocity = finalDir * dynamicSpeed * speedMultiplier;
+            rb.linearVelocity = finalDir * moveSpeed * speedMultiplier;
         }
         else
         {
-            rb.linearVelocity = finalDir * dynamicSpeed;
+            rb.linearVelocity = finalDir * moveSpeed;
         }
     }
 
     Vector3 CalculateTargetPosition()
     {
         Vector3 basePosition = currentTarget.position;
-        
-        // Если цель - мяч и используется предсказание
-        Quaffle quaffle = currentTarget.GetComponent<Quaffle>();
-        if (quaffle != null && usePrediction && !quaffle.isHeld)
-        {
-            basePosition = PredictBallPosition(quaffle, predictionTime);
-        }
         
         // Добавляем offset (кроме ворот)
         if (currentTarget.GetComponent<GoalRing>() == null)
@@ -342,47 +477,6 @@ public class AIPlayer : MonoBehaviour
         return avoidanceVector;
     }
 
-    float CalculateDynamicSpeed()
-    {
-        float speed = moveSpeed;
-        
-        // Ускоряемся, если цель далеко
-        if (currentTarget != null)
-        {
-            float distance = Vector3.Distance(transform.position, currentTarget.position);
-            if (distance > 20f)
-            {
-                speed *= 1.3f; // Буст скорости на дальних дистанциях
-            }
-        }
-        
-        // Замедляемся в толпе
-        Collider[] nearbyBots = Physics.OverlapSphere(transform.position, 5f, botLayer);
-        int botCount = nearbyBots.Length - 1; // Минус сам бот
-        
-        if (botCount > 3)
-        {
-            speed *= 0.7f; // Замедление в толпе
-        }
-        
-        return speed;
-    }
-
-    Vector3 PredictBallPosition(Quaffle ball, float timeAhead)
-    {
-        if (ball.rb == null) return ball.transform.position;
-        
-        Vector3 velocity = ball.rb.linearVelocity;
-        Vector3 gravity = Physics.gravity;
-        
-        // Простое физическое предсказание
-        Vector3 predictedPos = ball.transform.position 
-            + velocity * timeAhead 
-            + 0.5f * gravity * timeAhead * timeAhead;
-        
-        return predictedPos;
-    }
-
     void GenerateNewTargetOffset()
     {
         // Генерируем случайный offset вокруг цели
@@ -413,26 +507,30 @@ public class AIPlayer : MonoBehaviour
         
         AIPlayer targetBot = currentTarget.GetComponent<AIPlayer>();
 
-        // Кража у другого бота
+        // Кража у другого бота (cooldown зависит от роли)
         if (!hasBall && targetBot != null && targetBot.hasBall)
         {
             float sqrDist = (transform.position - currentTarget.position).sqrMagnitude;
-            if (sqrDist <= 9f && Time.time >= lastStealTime + stealCooldown)
+            float roleCooldown = GetStealCooldownForRole(); // НОВОЕ: cooldown по роли
+            
+            if (sqrDist <= 9f && Time.time >= lastStealTime + roleCooldown)
             {
                 StealBallFromBot(targetBot);
                 lastStealTime = Time.time;
             }
         }
         
-        // Кража у игрока
+        // Кража у игрока (ОТДЕЛЬНЫЙ cooldown по роли)
         IPlayerController player = currentTarget.GetComponent<IPlayerController>();
         if (!hasBall && player != null && player.HasBall)
         {
             float sqrDist = (transform.position - currentTarget.position).sqrMagnitude;
-            if (sqrDist <= 9f && Time.time >= lastStealTime + stealCooldown)
+            float rolePlayerCooldown = GetStealFromPlayerCooldownForRole(); // НОВОЕ
+            
+            if (sqrDist <= 9f && Time.time >= lastStealFromPlayerTime + rolePlayerCooldown)
             {
                 StealBallFromPlayer(player);
-                lastStealTime = Time.time;
+                lastStealFromPlayerTime = Time.time;  // Используем отдельный таймер!
             }
         }
 
@@ -454,14 +552,26 @@ public class AIPlayer : MonoBehaviour
         Quaffle q = targetBot.currentQuaffle;
         if (q != null)
         {
-            // ТОЛЧОК БОТА (всегда активен)
+            // УЛУЧШЕННАЯ ФОРМУЛА ТОЛЧКА
             Vector3 pushDirection = (targetBot.transform.position - transform.position).normalized;
-            pushDirection.y = pushUpwardForce / pushForce;
             
-            if (targetBot.rb != null)
+            // Добавляем вертикальную составляющую (фиксированная)
+            pushDirection.y = 0.4f; // Фиксированное значение вместо деления
+            pushDirection.Normalize();
+            
+            if (targetBot.rb != null && !targetBot.rb.isKinematic)
             {
-                targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
-                Log($"ТОЛКНУЛ бота {targetBot.name} с силой {pushForce}");
+                // Используем VelocityChange для более предсказуемого результата
+                targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
+                
+                // Дополнительно: добавляем импульс вверх
+                targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
+                
+                Log($"ТОЛКНУЛ бота {targetBot.name} с силой {pushForce} (VelocityChange + Impulse)");
+            }
+            else
+            {
+                Log($"ОШИБКА: rb бота {targetBot.name} null или kinematic!");
             }
             
             // Забираем мяч
@@ -480,12 +590,14 @@ public class AIPlayer : MonoBehaviour
             if (canPushPlayer)
             {
                 Vector3 pushDirection = (player.Transform.position - transform.position).normalized;
-                pushDirection.y = pushUpwardForce / pushForce;
+                pushDirection.y = 0.4f;
+                pushDirection.Normalize();
                 
                 Rigidbody playerRb = player.Transform.GetComponent<Rigidbody>();
-                if (playerRb != null)
+                if (playerRb != null && !playerRb.isKinematic)
                 {
-                    playerRb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
+                    playerRb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
+                    playerRb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
                     Log($"ТОЛКНУЛ игрока с силой {pushForce}");
                 }
             }
@@ -612,23 +724,37 @@ public class AIPlayer : MonoBehaviour
             }
         }
         
-        // Предсказанная позиция мяча
-        if (currentTarget != null && usePrediction)
-        {
-            Quaffle quaffle = currentTarget.GetComponent<Quaffle>();
-            if (quaffle != null && !quaffle.isHeld)
-            {
-                Vector3 predicted = PredictBallPosition(quaffle, predictionTime);
-                Gizmos.color = Color.magenta;
-                Gizmos.DrawWireSphere(predicted, 0.8f);
-                Gizmos.DrawLine(currentTarget.position, predicted);
-            }
-        }
-        
         // Индикатор роли
         Gizmos.color = role == BotRole.Attacker ? Color.red : 
                        role == BotRole.Defender ? Color.blue : Color.yellow;
         Gizmos.DrawWireCube(transform.position + Vector3.up * 3f, Vector3.one * 0.5f);
+        
+        // НОВОЕ: Визуализация для Defender
+        if (role == BotRole.Defender)
+        {
+            // 1. Домашние ворота (зеленая сфера)
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(homeGoalPosition, 3f);
+            
+            // 2. Центр поля (ГРАНИЦА) - красная линия
+            Gizmos.color = Color.red;
+            // Вертикальная линия через центр поля (граница, за которую не может заходить Defender)
+            Gizmos.DrawLine(fieldCenter + Vector3.up * 20f, fieldCenter - Vector3.up * 5f);
+            Gizmos.DrawLine(fieldCenter + Vector3.right * 30f, fieldCenter - Vector3.right * 30f);
+            Gizmos.DrawLine(fieldCenter + Vector3.forward * 30f, fieldCenter - Vector3.forward * 30f);
+            
+            // 3. Максимальная дистанция от ворот (синяя сфера)
+            Gizmos.color = new Color(0, 0.5f, 1f, 0.3f); // Полупрозрачный синий
+            Gizmos.DrawWireSphere(homeGoalPosition, defenderMaxDistance);
+            
+            // 4. Зона предиктивного перехвата (желтая сфера)
+            Gizmos.color = new Color(1f, 1f, 0f, 0.2f); // Полупрозрачный желтый
+            Gizmos.DrawWireSphere(homeGoalPosition, defenderPredictionRange);
+            
+            // 5. Линия от Defender к домашним воротам
+            Gizmos.color = Color.white;
+            Gizmos.DrawLine(transform.position, homeGoalPosition);
+        }
     }
 
     #endregion

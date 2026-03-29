@@ -43,8 +43,8 @@ public class BroomController : MonoBehaviour, IPlayerController
     private float lastLostBallTime = -999f;
     
     [Header("Push Settings (Player)")]
-    public float pushForce = 15f;              // Сила толчка бота
-    public float pushUpwardForce = 5f;         // Вертикальная составляющая
+    public float pushForce = 25f;              // Сила толчка бота (увеличено с 15 до 25)
+    public float pushUpwardForce = 8f;         // Вертикальная составляющая (увеличено с 5 до 8)
 
     #endregion
 
@@ -181,13 +181,15 @@ public class BroomController : MonoBehaviour, IPlayerController
         Quaffle q = targetBot.GetCurrentQuaffle();
         if (q != null)
         {
-            // ТОЛЧОК БОТА игроком
+            // УЛУЧШЕННАЯ ФОРМУЛА ТОЛЧКА
             Vector3 pushDirection = (targetBot.transform.position - transform.position).normalized;
-            pushDirection.y = pushUpwardForce / pushForce;
+            pushDirection.y = 0.4f;
+            pushDirection.Normalize();
             
-            if (targetBot.rb != null)
+            if (targetBot.rb != null && !targetBot.rb.isKinematic)
             {
-                targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.Impulse);
+                targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
+                targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
                 Debug.Log($"[BroomController] ТОЛКНУЛ бота {targetBot.name} с силой {pushForce}");
             }
             

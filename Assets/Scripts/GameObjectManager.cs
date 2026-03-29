@@ -199,7 +199,8 @@ public class GameObjectManager : MonoBehaviour
         foreach (var goal in allGoals)
         {
             if (goal == null) continue;
-            if (goal.GetScoredTeam() == team) continue;
+            // ИСПРАВЛЕНО: Ищем ворота, где scoredTeam == team (ворота противника, в которые нужно забивать)
+            if (goal.GetScoredTeam() != team) continue;
 
             float dist = Vector3.Distance(position, goal.transform.position);
             if (dist < minDist)
