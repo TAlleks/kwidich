@@ -46,12 +46,16 @@ public class AIPlayer : MonoBehaviour
     public bool canPushPlayer = true;          // Может ли толкать игрока (включено по умолчанию)
 
     [Header("Settings")]
-    public Team team = Team.Enemy;
+    public Team team = Team.Player;  // Изменено с Enemy на Player (ваша команда по умолчанию)
     public float moveSpeed = 15f;
     public float turnSpeed = 5f;
     public float scoringDistance = 20f;
     public float minThrowDistance = 5f;
     public float throwChance = 0.85f;
+
+    [Header("Role Characteristics")]
+    public float roleSpeedMultiplier = 1f;        // Множитель скорости для роли
+    public float roleAggressionLevel = 1f;        // Уровень агрессивности (влияет на частоту смены цели)
 
     [Header("Avoidance")]
     public float avoidanceRadius = 3f;         // Радиус обнаружения других ботов (МАКСИМУМ 3!)
@@ -64,7 +68,7 @@ public class AIPlayer : MonoBehaviour
     private Vector3 targetOffset;              // Персональный offset
 
     [Header("Pickup Settings")]
-    public float pickupCooldown = 2f;
+    public float pickupCooldown = 3f;
     private float lastThrowTime = -999f;
 
     [Header("References")]
@@ -101,13 +105,16 @@ public class AIPlayer : MonoBehaviour
         // Устанавливаем время смены роли
         nextRoleChangeTime = Time.time + roleChangeInterval;
         
+        // НОВОЕ: Инициализируем характеристики роли
+        UpdateRoleCharacteristics();
+        
         // Найти свои ворота для Defender
         if (role == BotRole.Defender)
         {
             GoalRing[] goals = FindObjectsByType<GoalRing>(FindObjectsSortMode.None);
             foreach (var goal in goals)
             {
-                if (goal.GetScoredTeam() != team) // Наши ворота (которые мы защищаем)
+                if (goal.GetScoredTeam() == team) // Наши ворота (которые мы защищаем)
                 {
                     homeGoalPosition = goal.transform.position;
                     
@@ -153,6 +160,22 @@ public class AIPlayer : MonoBehaviour
             ChangeRoleRandomly();
             nextRoleChangeTime = Time.time + roleChangeInterval;
         }
+        
+        // НОВОЕ: Проверка синхронизации состояния мяча
+        if (hasBall && currentQuaffle != null)
+        {
+            // Проверяем, что мяч действительно принадлежит нам
+            if (!currentQuaffle.IsHeldBy(transform))
+            {
+                Log("РАССИНХРОНИЗАЦИЯ: Мяч не принадлежит мне, исправляю!");
+                SetHasBall(false, null);
+            }
+        }
+        else if (!hasBall && currentQuaffle != null)
+        {
+            // Если у нас нет флага, но есть ссылка на мяч - очищаем
+            currentQuaffle = null;
+        }
     }
 
     void FixedUpdate()
@@ -191,18 +214,19 @@ public class AIPlayer : MonoBehaviour
 
     void MakeAttackerDecision()
     {
-        // ВСЕГДА ищем мяч (свободный или у кого-то)
-        // Убрана проверка pickupCooldown - атакуем постоянно!
-        
-        currentTarget = FindNearestFreeQuaffle();
-        
-        if (currentTarget != null)
+        // Проверяем cooldown перед поиском свободного мяча
+        if (Time.time >= lastThrowTime + pickupCooldown)
         {
-            GenerateNewTargetOffset();
-            return;
+            currentTarget = FindNearestFreeQuaffle();
+            
+            if (currentTarget != null)
+            {
+                GenerateNewTargetOffset();
+                return;
+            }
         }
         
-        // Если нет свободного - идем красть
+        // Если cooldown активен или нет свободного мяча - идем красть
         currentTarget = FindNearestBotWithBall();
         
         if (currentTarget == null)
@@ -270,7 +294,27 @@ public class AIPlayer : MonoBehaviour
             }
         }
         
-        // 4. Если нет угрозы - патрулируем около ворот (остаемся на месте)
+        // 4. НОВОЕ: Если нет угрозы и cooldown прошел - подбираем свободный мяч в зоне защиты
+        if (Time.time >= lastThrowTime + pickupCooldown)
+        {
+            Transform nearestQuaffle = FindNearestFreeQuaffle();
+            
+            if (nearestQuaffle != null)
+            {
+                // Проверяем, что мяч находится в нашей зоне защиты (100% от defenderMaxDistance)
+                float quaffleDistanceFromGoal = Vector3.Distance(homeGoalPosition, nearestQuaffle.position);
+                
+                if (quaffleDistanceFromGoal < defenderMaxDistance)
+                {
+                    currentTarget = nearestQuaffle;
+                    GenerateNewTargetOffset();
+                    Log($"Defender подбирает свободный мяч в зоне защиты (расстояние от ворот: {quaffleDistanceFromGoal:F1}м)");
+                    return;
+                }
+            }
+        }
+        
+        // 5. Если нет угрозы - патрулируем около ворот
         currentTarget = null;
         Log("Defender патрулирует около ворот");
     }
@@ -309,8 +353,8 @@ public class AIPlayer : MonoBehaviour
         // Если некого грабить - идем за игроком
         currentTarget = FindPlayerWithBall();
         
-        // В крайнем случае - свободный мяч
-        if (currentTarget == null)
+        // В крайнем случае - свободный мяч (с проверкой cooldown)
+        if (currentTarget == null && Time.time >= lastThrowTime + pickupCooldown)
         {
             currentTarget = FindNearestFreeQuaffle();
             if (currentTarget != null)
@@ -325,7 +369,23 @@ public class AIPlayer : MonoBehaviour
         // Случайная смена роли для разнообразия
         int randomRole = Random.Range(0, 3);
         role = (BotRole)randomRole;
+        
+        // НОВОЕ: Обновляем характеристики при смене роли
+        UpdateRoleCharacteristics();
+        
         Log($"Сменил роль на {role}");
+    }
+    
+    // НОВЫЙ МЕТОД: Обновить характеристики в зависимости от роли
+    void UpdateRoleCharacteristics()
+    {
+        roleSpeedMultiplier = GetRoleSpeedMultiplier();
+        roleAggressionLevel = GetRoleAggressionLevel();
+        
+        // Обновляем интервал принятия решений в зависимости от агрессивности
+        decisionInterval = 0.3f / roleAggressionLevel;
+        
+        Log($"Роль {role}: Скорость x{roleSpeedMultiplier:F1}, Агрессия x{roleAggressionLevel:F1}, Интервал решений {decisionInterval:F2}с");
     }
     
     // Получить cooldown кражи у ботов в зависимости от роли
@@ -359,6 +419,38 @@ public class AIPlayer : MonoBehaviour
                 return stealFromPlayerCooldown;
         }
     }
+    
+    // Получить множитель скорости в зависимости от роли
+    float GetRoleSpeedMultiplier()
+    {
+        switch (role)
+        {
+            case BotRole.Attacker:
+                return 1.1f;    // ИЗМЕНЕНО: с 1.2x на 1.1x (чуть медленнее)
+            case BotRole.Support:
+                return 1.0f;    // Средняя скорость
+            case BotRole.Defender:
+                return 0.9f;    // Самый медленный
+            default:
+                return 1.0f;
+        }
+    }
+
+    // Получить уровень агрессивности в зависимости от роли
+    float GetRoleAggressionLevel()
+    {
+        switch (role)
+        {
+            case BotRole.Attacker:
+                return 1.5f;    // Очень агрессивный (чаще меняет цель)
+            case BotRole.Support:
+                return 1.0f;    // Средняя агрессивность
+            case BotRole.Defender:
+                return 0.7f;    // Низкая агрессивность (более осторожный)
+            default:
+                return 1.0f;
+        }
+    }
 
     #endregion
 
@@ -376,7 +468,7 @@ public class AIPlayer : MonoBehaviour
                 if (distanceFromHome > 5f) // Если далеко от ворот
                 {
                     Vector3 dirToHome = (homeGoalPosition - transform.position).normalized;
-                    rb.linearVelocity = dirToHome * (moveSpeed * 0.5f); // Медленно возвращаемся
+                    rb.linearVelocity = dirToHome * (moveSpeed * roleSpeedMultiplier * 0.5f); // Медленно возвращаемся с учетом роли
                     Log($"Defender возвращается к воротам (расстояние: {distanceFromHome:F1}м)");
                     return;
                 }
@@ -399,6 +491,9 @@ public class AIPlayer : MonoBehaviour
         Vector3 avoidanceLimited = Vector3.ClampMagnitude(avoidance, 0.3f);
         Vector3 finalDir = (dirToTarget + avoidanceLimited).normalized;
         
+        // Применяем множитель скорости роли
+        float effectiveSpeed = moveSpeed * roleSpeedMultiplier;
+        
         // Проверка близости к цели (замедление)
         float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
         
@@ -420,11 +515,11 @@ public class AIPlayer : MonoBehaviour
         if (distanceToTarget < 3f)
         {
             float speedMultiplier = Mathf.Clamp01(distanceToTarget / 3f);
-            rb.linearVelocity = finalDir * moveSpeed * speedMultiplier;
+            rb.linearVelocity = finalDir * effectiveSpeed * speedMultiplier;
         }
         else
         {
-            rb.linearVelocity = finalDir * moveSpeed;
+            rb.linearVelocity = finalDir * effectiveSpeed;
         }
     }
 
@@ -552,6 +647,14 @@ public class AIPlayer : MonoBehaviour
         Quaffle q = targetBot.currentQuaffle;
         if (q != null)
         {
+            // НОВОЕ: Проверяем, что мяч действительно у цели
+            if (!q.IsHeldBy(targetBot.transform))
+            {
+                Log($"Мяч не принадлежит {targetBot.name}, рассинхронизация исправлена");
+                targetBot.SetHasBall(false, null);
+                return;
+            }
+            
             // УЛУЧШЕННАЯ ФОРМУЛА ТОЛЧКА
             Vector3 pushDirection = (targetBot.transform.position - transform.position).normalized;
             
@@ -566,18 +669,15 @@ public class AIPlayer : MonoBehaviour
                 
                 // Дополнительно: добавляем импульс вверх
                 targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
-                
-                Log($"ТОЛКНУЛ бота {targetBot.name} с силой {pushForce} (VelocityChange + Impulse)");
-            }
-            else
-            {
-                Log($"ОШИБКА: rb бота {targetBot.name} null или kinematic!");
             }
             
-            // Забираем мяч
-            targetBot.SetHasBall(false, null);
-            SetHasBall(true, q);
-            Log("УКРАЛ мяч у бота");
+            // НОВОЕ: Используем централизованный метод смены владельца
+            bool success = q.TryChangeOwner(transform, forceSteal: true);
+            
+            if (success)
+            {
+                Log($"Украл мяч у {targetBot.name}");
+            }
         }
     }
 
@@ -586,6 +686,14 @@ public class AIPlayer : MonoBehaviour
         Quaffle q = player.CurrentQuaffle;
         if (q != null)
         {
+            // НОВОЕ: Проверяем, что мяч действительно у игрока
+            if (!q.IsHeldBy(player.Transform))
+            {
+                Log("Мяч не принадлежит игроку, рассинхронизация исправлена");
+                player.SetHasBall(false, null);
+                return;
+            }
+            
             // ТОЛЧОК ИГРОКА (только если разрешено)
             if (canPushPlayer)
             {
@@ -598,18 +706,16 @@ public class AIPlayer : MonoBehaviour
                 {
                     playerRb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
                     playerRb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
-                    Log($"ТОЛКНУЛ игрока с силой {pushForce}");
                 }
             }
-            else
-            {
-                Log("Украл мяч у игрока БЕЗ толчка (безопасный режим)");
-            }
             
-            // Забираем мяч
-            player.SetHasBall(false, null);
-            q.TryPickup(transform);
-            Log("УКРАЛ мяч у игрока");
+            // НОВОЕ: Используем централизованный метод смены владельца
+            bool success = q.TryChangeOwner(transform, forceSteal: true);
+            
+            if (success)
+            {
+                Log("Украл мяч у игрока");
+            }
         }
     }
 
@@ -643,6 +749,14 @@ public class AIPlayer : MonoBehaviour
     void ThrowBall(Vector3 goalPos)
     {
         if (!hasBall || currentQuaffle == null) return;
+        
+        // НОВОЕ: Проверяем, что мяч действительно у нас
+        if (!currentQuaffle.IsHeldBy(transform))
+        {
+            Log("Пытаюсь бросить мяч, который мне не принадлежит, рассинхронизация исправлена");
+            SetHasBall(false, null);
+            return;
+        }
 
         Vector3 dir = (goalPos - transform.position).normalized;
         dir.y += 0.2f;
@@ -654,7 +768,7 @@ public class AIPlayer : MonoBehaviour
         }
 
         currentQuaffle.Throw(dir);
-        SetHasBall(false, null);
+        // SetHasBall вызовется автоматически в Quaffle.Throw()
 
         lastThrowTime = Time.time;
         Log("Бросил мяч в ворота");

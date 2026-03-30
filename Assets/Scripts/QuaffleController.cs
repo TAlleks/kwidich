@@ -17,6 +17,116 @@ public class Quaffle : MonoBehaviour
     private float canBePickedUpTime = 0f;
     public Collider col;
 
+    #region State Check Methods
+
+    // Проверка, принадлежит ли мяч конкретному держателю
+    public bool IsHeldBy(Transform checkHolder)
+    {
+        return isHeld && holder == checkHolder;
+    }
+
+    // Проверка, свободен ли мяч
+    public bool IsFree()
+    {
+        return !isHeld && holder == null && Time.time >= canBePickedUpTime;
+    }
+
+    // Получить текущего держателя
+    public Transform GetCurrentHolder()
+    {
+        return isHeld ? holder : null;
+    }
+
+    #endregion
+
+    #region Centralized Ownership Management
+
+    /// <summary>
+    /// Единственный метод для смены владельца мяча.
+    /// Автоматически снимает флаги у старого владельца и устанавливает у нового.
+    /// </summary>
+    /// <param name="newHolder">Новый владелец</param>
+    /// <param name="forceSteal">Принудительная кража (игнорирует проверку isHeld)</param>
+    /// <returns>true если смена владельца успешна</returns>
+    public bool TryChangeOwner(Transform newHolder, bool forceSteal = false)
+    {
+        if (newHolder == null)
+        {
+            Debug.LogWarning("[Quaffle] TryChangeOwner: newHolder is null!");
+            return false;
+        }
+        
+        // Проверка cooldown
+        if (Time.time < canBePickedUpTime && !forceSteal)
+        {
+            return false;
+        }
+        
+        // Если мяч уже у этого держателя
+        if (isHeld && holder == newHolder)
+        {
+            return false;
+        }
+        
+        // Получаем информацию о текущем владельце (только если holder не null)
+        IPlayerController currentPlayer = null;
+        AIPlayer currentAI = null;
+        
+        if (holder != null)
+        {
+            currentPlayer = holder.GetComponentInParent<IPlayerController>();
+            currentAI = holder.GetComponentInParent<AIPlayer>();
+        }
+        
+        // Получаем информацию о новом владельце
+        IPlayerController newPlayer = newHolder.GetComponentInParent<IPlayerController>();
+        AIPlayer newAI = newHolder.GetComponentInParent<AIPlayer>();
+        
+        // Если мяч занят и не разрешена кража
+        if (isHeld && holder != null && !forceSteal)
+        {
+            return false;
+        }
+        
+        // Снимаем флаг у текущего владельца
+        if (isHeld && holder != null)
+        {
+            if (currentPlayer != null)
+            {
+                currentPlayer.SetHasBall(false, null);
+            }
+            else if (currentAI != null)
+            {
+                currentAI.SetHasBall(false, null);
+            }
+        }
+        
+        // Устанавливаем нового владельца
+        holder = newHolder;
+        isHeld = true;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        col.gameObject.SetActive(false);
+        
+        // Устанавливаем флаг у нового владельца
+        if (newPlayer != null)
+        {
+            rb.mass = 0;
+            newPlayer.SetHasBall(true, this);
+        }
+        else if (newAI != null)
+        {
+            rb.mass = 1;
+            newAI.SetHasBall(true, this);
+        }
+        
+        return true;
+    }
+
+    #endregion
+
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -65,80 +175,13 @@ public class Quaffle : MonoBehaviour
 
     public void TryPickup(Transform newHolder)
     {
-        if (Time.time < canBePickedUpTime) return;
-
-        IPlayerController newPlayer = newHolder.GetComponentInParent<IPlayerController>();
-        bool newIsAI = newHolder.GetComponentInParent<AIPlayer>() != null;
-
-        if (isHeld && holder != null)
-        {
-            IPlayerController currentPlayer = holder.GetComponentInParent<IPlayerController>();
-            bool currentIsAI = holder.GetComponentInParent<AIPlayer>() != null;
-
-            // Если сейчас мяч у игрока
-            if (currentPlayer != null && !currentIsAI)
-            {
-                // Позволяем только ИИ (боту) отобрать мяч у игрока
-                if (!newIsAI)
-                    return;
-
-                // Снимем флаг у игрока — отбирают ботом
-                currentPlayer.SetHasBall(false, null);
-            }
-            // Если сейчас мяч у бота
-            else if (currentIsAI)
-            {
-                // Если новый держатель — игрок, позволяем (игрок подбирает)
-                if (newPlayer != null && !newIsAI)
-                {
-                    AIPlayer ai = holder.GetComponentInParent<AIPlayer>();
-                    if (ai != null) ai.SetHasBall(false, null);
-                }
-                else
-                {
-                    // Боты не крадут друг у друга
-                    return;
-                }
-            }
-        }
-
-        // Назначаем нового владельца
-        holder = newHolder;
-        isHeld = true;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        col.gameObject.SetActive(false);
-
-        IPlayerController playerController = newHolder.GetComponentInParent<IPlayerController>();
-        if (playerController != null && !newIsAI)
-        {
-            rb.mass = 0;
-            playerController.SetHasBall(true, this);
-            return;
-        }
-
-        AIPlayer aiPlayer = newHolder.GetComponentInParent<AIPlayer>();
-        if (aiPlayer != null)
-        {
-            rb.mass = 1;
-            aiPlayer.SetHasBall(true, this);
-        }
+        TryChangeOwner(newHolder, forceSteal: false);
     }
 
 
     public void Pickup(Transform newHolder)
     {
-        if (isHeld) return;
-
-        isHeld = true;
-        holder = newHolder;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        col.gameObject.SetActive(false);
+        TryChangeOwner(newHolder, forceSteal: false);
     }
 
     public void Throw(Vector3 direction)
@@ -149,6 +192,19 @@ public class Quaffle : MonoBehaviour
             Debug.LogWarning("[Quaffle] Попытка бросить мяч, который не удерживается!", this);
             return;
         }
+        
+        // Снимаем флаг у текущего владельца
+        IPlayerController currentPlayer = holder?.GetComponentInParent<IPlayerController>();
+        AIPlayer currentAI = holder?.GetComponentInParent<AIPlayer>();
+        
+        if (currentPlayer != null)
+        {
+            currentPlayer.SetHasBall(false, null);
+        }
+        else if (currentAI != null)
+        {
+            currentAI.SetHasBall(false, null);
+        }
 
         isHeld = false;
         holder = null;
@@ -157,8 +213,6 @@ public class Quaffle : MonoBehaviour
         canBePickedUpTime = Time.time + 1f;
         col.gameObject.SetActive(true);
         rb.AddForce(direction * throwForce, ForceMode.Impulse);
-        
-        Debug.Log("[Quaffle] Мяч брошен успешно", this);
     }
 
     public void Respawn()
@@ -174,22 +228,24 @@ public class Quaffle : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (Time.time < canBePickedUpTime || isHeld) return;
+        // Если мяч занят или на cooldown - игнорируем
+        if (isHeld || Time.time < canBePickedUpTime) return;
 
         Transform root = other.transform.root;
+        
+        // Проверяем игрока
         IPlayerController player = root.GetComponentInChildren<IPlayerController>();
         if (player != null)
         {
-            TryPickup(player.Transform);
+            TryChangeOwner(player.Transform, forceSteal: false);
             return;
         }
 
+        // Проверяем AI бота
         AIPlayer ai = root.GetComponentInChildren<AIPlayer>();
         if (ai != null && !ai.hasBall)
         {
-            Pickup(ai.transform);
-            rb.mass = 1;
-            ai.SetHasBall(true, this);
+            TryChangeOwner(ai.transform, forceSteal: false);
         }
     }
 }

@@ -97,6 +97,20 @@ public class BroomController : MonoBehaviour, IPlayerController
         HandleCollisionRecovery();
         ThrowBallInput();
         TryStealBall();
+        
+        // НОВОЕ: Проверка синхронизации состояния мяча
+        if (hasBall && quaffle != null)
+        {
+            if (!quaffle.IsHeldBy(transform))
+            {
+                Debug.Log("[BroomController] РАССИНХРОНИЗАЦИЯ: Мяч не принадлежит мне, исправляю!");
+                SetHasBall(false, null);
+            }
+        }
+        else if (!hasBall && quaffle != null)
+        {
+            quaffle = null;
+        }
     }
 
 
@@ -181,6 +195,14 @@ public class BroomController : MonoBehaviour, IPlayerController
         Quaffle q = targetBot.GetCurrentQuaffle();
         if (q != null)
         {
+            // НОВОЕ: Проверяем, что мяч действительно у бота
+            if (!q.IsHeldBy(targetBot.transform))
+            {
+                Debug.Log($"[BroomController] Мяч не принадлежит {targetBot.name}, рассинхронизация исправлена");
+                targetBot.SetHasBall(false, null);
+                return;
+            }
+            
             // УЛУЧШЕННАЯ ФОРМУЛА ТОЛЧКА
             Vector3 pushDirection = (targetBot.transform.position - transform.position).normalized;
             pushDirection.y = 0.4f;
@@ -190,14 +212,15 @@ public class BroomController : MonoBehaviour, IPlayerController
             {
                 targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
                 targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
-                Debug.Log($"[BroomController] ТОЛКНУЛ бота {targetBot.name} с силой {pushForce}");
             }
             
-            // Забираем мяч
-            targetBot.SetHasBall(false, null);
-            SetHasBall(true, q);
-            quaffle.holder = gameObject.transform;
-            Debug.Log("[BroomController] Украл мяч у бота");
+            // НОВОЕ: Используем централизованный метод смены владельца
+            bool success = q.TryChangeOwner(transform, forceSteal: true);
+            
+            if (success)
+            {
+                Debug.Log("[BroomController] Украл мяч у бота");
+            }
         }
     }
 

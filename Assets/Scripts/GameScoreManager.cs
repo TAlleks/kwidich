@@ -41,7 +41,7 @@ public class GameScoreManager : MonoBehaviour
     public void AddGoal(Team team)
     {
 
-        if (team == Team.Player)
+        if (team != Team.Player)
         {
             playerScore += 1;
             //Debug.Log($"[—чЄт] »грок забил! —чЄт: {playerScore} - {enemyScore}");
