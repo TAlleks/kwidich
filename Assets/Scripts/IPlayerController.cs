@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 /// <summary>
 /// Интерфейс для всех контроллеров игрока (BroomController, FuturiftMoving)
@@ -37,7 +38,23 @@ public interface IPlayerController
     void SaveStartPosition();
 
     /// <summary>
-    /// Респавн на стартовую позицию (мгновенная телепортация)
+    /// Респавн на стартовую позицию (полная последовательность)
     /// </summary>
     void RespawnToStartPosition();
+
+    /// <summary>
+    /// Плавное замедление игрока (БЕЗ телепортации)
+    /// Используется для синхронной телепортации с ботами
+    /// </summary>
+    IEnumerator SlowdownSequence();
+
+    /// <summary>
+    /// Телепортация на стартовую позицию (БЕЗ замедления)
+    /// </summary>
+    void TeleportToStart();
+
+    /// <summary>
+    /// Разблокировка управления игрока
+    /// </summary>
+    void EnableInput();
 }

@@ -69,6 +69,7 @@ public class BroomController : MonoBehaviour, IPlayerController
     private Vector3 startPosition;
     private Quaternion startRotation;
     private bool isInputDisabled = false;  // Флаг блокировки управления
+    private bool hasMovementInput = false; // Есть ли активный input от игрока
 
     #endregion
 
@@ -131,6 +132,17 @@ public class BroomController : MonoBehaviour, IPlayerController
         {
             ApplyMovement();
             ApplyHeightControl();
+        }
+        else
+        {
+            // Если управление заблокировано, но нет input - применяем замедление
+            if (!hasMovementInput && rb.linearVelocity.magnitude > 0.5f)
+            {
+                // Горизонтальное замедление (не трогаем Y)
+                Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+                horizontalVelocity = Vector3.Lerp(horizontalVelocity, Vector3.zero, Time.fixedDeltaTime * 3f);
+                rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, horizontalVelocity.z);
+            }
         }
     }
 
@@ -226,6 +238,9 @@ public class BroomController : MonoBehaviour, IPlayerController
             {
                 targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
                 targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
+                
+                // НОВОЕ: Применяем оглушение к боту
+                targetBot.ApplyStun(targetBot.stunDuration);
             }
             
             // НОВОЕ: Используем централизованный метод смены владельца
@@ -234,6 +249,9 @@ public class BroomController : MonoBehaviour, IPlayerController
             if (success)
             {
                 Debug.Log("[BroomController] Украл мяч у бота");
+                
+                // НОВОЕ: Устанавливаем глобальный cooldown для всех ботов
+                AIPlayer.SetGlobalStealFromPlayerCooldown();
             }
         }
     }
@@ -250,6 +268,9 @@ public class BroomController : MonoBehaviour, IPlayerController
         targetSteeringAngle = steering * 40f;
 
         float input = throttle - brake;
+        
+        // Отслеживаем наличие input для системы замедления
+        hasMovementInput = (Mathf.Abs(input) > 0.1f || Mathf.Abs(steering) > 0.1f);
 
         float targetSpeed = input * baseMaxSpeed;
         currentSpeed = Mathf.Lerp(
@@ -349,17 +370,10 @@ public class BroomController : MonoBehaviour, IPlayerController
     }
 
     /// <summary>
-    /// Респавн на стартовую позицию (с плавным замедлением)
+    /// Плавное замедление игрока (БЕЗ телепортации)
+    /// Используется для синхронной телепортации с ботами
     /// </summary>
-    public void RespawnToStartPosition()
-    {
-        StartCoroutine(RespawnSequence());
-    }
-    
-    /// <summary>
-    /// Последовательность респавна с плавным замедлением
-    /// </summary>
-    private System.Collections.IEnumerator RespawnSequence()
+    public System.Collections.IEnumerator SlowdownSequence()
     {
         // Блокируем управление
         isInputDisabled = true;
@@ -374,6 +388,7 @@ public class BroomController : MonoBehaviour, IPlayerController
         float slowdownDuration = 0.5f;
         float elapsed = 0f;
         Vector3 initialVelocity = rb.linearVelocity;
+        Vector3 initialAngularVelocity = rb.angularVelocity;
         
         while (elapsed < slowdownDuration)
         {
@@ -382,7 +397,7 @@ public class BroomController : MonoBehaviour, IPlayerController
             
             // Плавное замедление (ease-out)
             rb.linearVelocity = Vector3.Lerp(initialVelocity, Vector3.zero, t);
-            rb.angularVelocity = Vector3.Lerp(rb.angularVelocity, Vector3.zero, t);
+            rb.angularVelocity = Vector3.Lerp(initialAngularVelocity, Vector3.zero, t);
             currentSpeed = Mathf.Lerp(currentSpeed, 0f, t);
             
             yield return null;
@@ -393,9 +408,14 @@ public class BroomController : MonoBehaviour, IPlayerController
         rb.angularVelocity = Vector3.zero;
         currentSpeed = 0f;
         
-        // Небольшая пауза перед телепортацией
-        yield return new WaitForSeconds(0.1f);
-        
+        Debug.Log("[BroomController] Замедление завершено");
+    }
+    
+    /// <summary>
+    /// Телепортация на стартовую позицию (БЕЗ замедления)
+    /// </summary>
+    public void TeleportToStart()
+    {
         // Телепортируем на стартовую позицию
         transform.SetPositionAndRotation(startPosition, startRotation);
         
@@ -405,21 +425,35 @@ public class BroomController : MonoBehaviour, IPlayerController
         // Сбрасываем направление полета
         flightDirection = transform.forward;
         
-        // Разблокируем управление через небольшую задержку
-        yield return new WaitForSeconds(0.1f);
-        isInputDisabled = false;
-        
-        Debug.Log("[BroomController] Респавн завершен, управление восстановлено");
+        Debug.Log("[BroomController] Телепортирован на стартовую позицию");
     }
     
     /// <summary>
-    /// Разблокировка управления после задержки (УСТАРЕЛО - используется RespawnSequence)
+    /// Разблокировка управления игрока
     /// </summary>
-    private System.Collections.IEnumerator EnableInputAfterDelay(float delay)
+    public void EnableInput()
     {
-        yield return new WaitForSeconds(delay);
         isInputDisabled = false;
         Debug.Log("[BroomController] Управление разблокировано");
+    }
+    
+    /// <summary>
+    /// Респавн на стартовую позицию (для обратной совместимости)
+    /// </summary>
+    public void RespawnToStartPosition()
+    {
+        StartCoroutine(FullRespawnSequence());
+    }
+    
+    /// <summary>
+    /// Полная последовательность респавна (для обратной совместимости)
+    /// </summary>
+    private System.Collections.IEnumerator FullRespawnSequence()
+    {
+        yield return SlowdownSequence();
+        TeleportToStart();
+        yield return new WaitForSeconds(0.1f);
+        EnableInput();
     }
 
     #endregion

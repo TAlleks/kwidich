@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
@@ -29,8 +30,8 @@ public class AIPlayer : MonoBehaviour
     public float stopDistanceFromGoal = 12f;
 
     [Header("Defender Settings")]
-    public float defenderMaxDistance = 50f;     // Половина поля (100/2) - граница, за которую не может заходить
-    public float defenderPredictionRange = 30f; // Дистанция предиктивного перехвата
+    private float defenderMaxDistance = 50f;     // Половина поля (100/2) - граница, за которую не может заходить
+    private float defenderPredictionRange = 30f; // Дистанция предиктивного перехвата
     private Vector3 homeGoalPosition;           // Позиция своих ворот
     private Vector3 fieldCenter;                // Центр поля (граница для визуализации)
 
@@ -39,6 +40,16 @@ public class AIPlayer : MonoBehaviour
     public float stealFromPlayerCooldown = 5f;          // Отдельный cooldown для игрока
     private static float lastStealTime = -999f;
     private static float lastStealFromPlayerTime = -999f;      // Отдельный таймер для игрока
+    
+    /// <summary>
+    /// Устанавливает глобальный cooldown для всех ботов на кражу у игрока
+    /// Вызывается когда игрок крадет мяч у бота
+    /// </summary>
+    public static void SetGlobalStealFromPlayerCooldown()
+    {
+        lastStealFromPlayerTime = Time.time;
+        Debug.Log("[AIPlayer] Глобальный cooldown на кражу у игрока установлен");
+    }
     
     [Header("Push Settings")]
     public float pushForce = 25f;              // Сила толчка (увеличено с 15 до 25)
@@ -54,8 +65,8 @@ public class AIPlayer : MonoBehaviour
     public float throwChance = 0.85f;
 
     [Header("Role Characteristics")]
-    public float roleSpeedMultiplier = 1f;        // Множитель скорости для роли
-    public float roleAggressionLevel = 1f;        // Уровень агрессивности (влияет на частоту смены цели)
+    private float roleSpeedMultiplier = 1f;        // Множитель скорости для роли
+    private float roleAggressionLevel = 1f;        // Уровень агрессивности (влияет на частоту смены цели)
 
     [Header("Avoidance")]
     public float avoidanceRadius = 3f;         // Радиус обнаружения других ботов (МАКСИМУМ 3!)
@@ -110,6 +121,11 @@ public class AIPlayer : MonoBehaviour
     private float celebrationStartTime = 0f;
     private Vector3 startPosition;             // Стартовая позиция для возврата
     private Quaternion startRotation;          // Стартовая ротация
+    
+    // Система оглушения
+    private bool isStunned = false;            // Флаг оглушения
+    private float stunEndTime = 0f;            // Время окончания оглушения
+    public float stunDuration = 0.7f;          // Длительность оглушения (настраиваемая)
     
     #endregion
 
@@ -238,6 +254,24 @@ public class AIPlayer : MonoBehaviour
                 return;
                 
             case BotState.Normal:
+                // Проверка оглушения
+                if (isStunned)
+                {
+                    if (Time.time >= stunEndTime)
+                    {
+                        isStunned = false;
+                        Log("Оглушение закончилось");
+                    }
+                    else
+                    {
+                        // Применяем плавное замедление во время оглушения (только горизонтальное)
+                        Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+                        horizontalVelocity = Vector3.Lerp(horizontalVelocity, Vector3.zero, Time.fixedDeltaTime * 2f);
+                        rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, horizontalVelocity.z);
+                        return; // Не выполняем обычную логику движения
+                    }
+                }
+                
                 MoveToTarget();
                 CheckActions();
                 RotateModel();
@@ -530,11 +564,11 @@ public class AIPlayer : MonoBehaviour
         switch (role)
         {
             case BotRole.Attacker:
-                return 1.5f;    // Очень агрессивный (чаще меняет цель)
+                return 1.4f;    // Очень агрессивный (чаще меняет цель)
             case BotRole.Support:
                 return 1.0f;    // Средняя агрессивность
             case BotRole.Defender:
-                return 0.7f;    // Низкая агрессивность (более осторожный)
+                return 0.8f;    // Низкая агрессивность (более осторожный)
             default:
                 return 1.0f;
         }
@@ -757,6 +791,9 @@ public class AIPlayer : MonoBehaviour
                 
                 // Дополнительно: добавляем импульс вверх
                 targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
+                
+                // НОВОЕ: Применяем оглушение к боту
+                targetBot.ApplyStun(targetBot.stunDuration);
             }
             
             // НОВОЕ: Используем централизованный метод смены владельца
@@ -865,6 +902,16 @@ public class AIPlayer : MonoBehaviour
     #endregion
 
     #region Pass System (Goalkeeper)
+
+    /// <summary>
+    /// Применить оглушение к боту (вызывается при получении толчка)
+    /// </summary>
+    public void ApplyStun(float duration)
+    {
+        isStunned = true;
+        stunEndTime = Time.time + duration;
+        Log($"Оглушен на {duration:F1} секунд");
+    }
 
     /// <summary>
     /// Проверяет, заблокирован ли путь передачи врагами
@@ -1053,6 +1100,37 @@ public class AIPlayer : MonoBehaviour
         // Движение к стартовой позиции
         Vector3 dirToStart = (startPosition - transform.position).normalized;
         rb.linearVelocity = dirToStart * (moveSpeed * roleSpeedMultiplier * 0.7f);
+    }
+
+    /// <summary>
+    /// Плавное замедление бота (БЕЗ телепортации)
+    /// Используется для синхронной телепортации всех ботов
+    /// </summary>
+    public IEnumerator SlowdownSequence()
+    {
+        // Плавное замедление (0.5 секунды)
+        float slowdownDuration = 0.5f;
+        float elapsed = 0f;
+        Vector3 initialVelocity = rb.linearVelocity;
+        Vector3 initialAngularVelocity = rb.angularVelocity;
+        
+        while (elapsed < slowdownDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / slowdownDuration;
+            
+            // Плавное замедление (ease-out)
+            rb.linearVelocity = Vector3.Lerp(initialVelocity, Vector3.zero, t);
+            rb.angularVelocity = Vector3.Lerp(initialAngularVelocity, Vector3.zero, t);
+            
+            yield return null;
+        }
+        
+        // Полностью останавливаем
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        Log("Замедление завершено");
     }
 
     /// <summary>

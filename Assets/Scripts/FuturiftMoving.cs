@@ -68,6 +68,7 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
     private Vector3 startPosition;
     private Quaternion startRotation;
     private bool isInputDisabled = false;  // Флаг блокировки управления
+    private bool hasMovementInput = false; // Есть ли активный input от игрока
 
     #endregion
 
@@ -133,6 +134,17 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
         {
             ApplyMovement();
             ApplyHeightControl();
+        }
+        else
+        {
+            // Если управление заблокировано, но нет input - применяем замедление
+            if (!hasMovementInput && rb.linearVelocity.magnitude > 0.5f)
+            {
+                // Горизонтальное замедление (не трогаем Y)
+                Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+                horizontalVelocity = Vector3.Lerp(horizontalVelocity, Vector3.zero, Time.fixedDeltaTime * 3f);
+                rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, horizontalVelocity.z);
+            }
         }
     }
 
@@ -222,6 +234,9 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
             {
                 targetBot.rb.AddForce(pushDirection * pushForce, ForceMode.VelocityChange);
                 targetBot.rb.AddForce(Vector3.up * pushUpwardForce, ForceMode.Impulse);
+                
+                // НОВОЕ: Применяем оглушение к боту
+                targetBot.ApplyStun(targetBot.stunDuration);
             }
             
             // НОВОЕ: Используем централизованный метод смены владельца
@@ -230,6 +245,9 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
             if (success)
             {
                 Debug.Log("[FuturiftMoving] Украл мяч у бота");
+                
+                // НОВОЕ: Устанавливаем глобальный cooldown для всех ботов
+                AIPlayer.SetGlobalStealFromPlayerCooldown();
             }
         }
     }
@@ -246,6 +264,9 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
         // DEADZONE
         if (rightStick.magnitude < 0.1f) rightStick = Vector2.zero;
         if (leftStick.magnitude < 0.1f) leftStick = Vector2.zero;
+
+        // Отслеживаем наличие input для системы замедления
+        hasMovementInput = (rightStick.magnitude > 0.1f);
 
         // === ������ ���� (�����������) ===
         float steering = rightStick.x;
@@ -356,17 +377,10 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
     }
 
     /// <summary>
-    /// Респавн на стартовую позицию (с плавным замедлением)
+    /// Плавное замедление игрока (БЕЗ телепортации)
+    /// Используется для синхронной телепортации с ботами
     /// </summary>
-    public void RespawnToStartPosition()
-    {
-        StartCoroutine(RespawnSequence());
-    }
-    
-    /// <summary>
-    /// Последовательность респавна с плавным замедлением
-    /// </summary>
-    private System.Collections.IEnumerator RespawnSequence()
+    public System.Collections.IEnumerator SlowdownSequence()
     {
         // Блокируем управление
         isInputDisabled = true;
@@ -381,6 +395,7 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
         float slowdownDuration = 0.5f;
         float elapsed = 0f;
         Vector3 initialVelocity = rb.linearVelocity;
+        Vector3 initialAngularVelocity = rb.angularVelocity;
         
         while (elapsed < slowdownDuration)
         {
@@ -389,7 +404,7 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
             
             // Плавное замедление (ease-out)
             rb.linearVelocity = Vector3.Lerp(initialVelocity, Vector3.zero, t);
-            rb.angularVelocity = Vector3.Lerp(rb.angularVelocity, Vector3.zero, t);
+            rb.angularVelocity = Vector3.Lerp(initialAngularVelocity, Vector3.zero, t);
             currentSpeed = Mathf.Lerp(currentSpeed, 0f, t);
             
             yield return null;
@@ -400,30 +415,49 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
         rb.angularVelocity = Vector3.zero;
         currentSpeed = 0f;
         
-        // Небольшая пауза перед телепортацией
-        yield return new WaitForSeconds(0.1f);
-        
+        Debug.Log("[FuturiftMoving] Замедление завершено");
+    }
+    
+    /// <summary>
+    /// Телепортация на стартовую позицию (БЕЗ замедления)
+    /// </summary>
+    public void TeleportToStart()
+    {
         // Телепортируем на стартовую позицию
         transform.SetPositionAndRotation(startPosition, startRotation);
         
         // Сбрасываем направление полета
         flightDirection = transform.forward;
         
-        // Разблокируем управление через небольшую задержку
-        yield return new WaitForSeconds(0.1f);
-        isInputDisabled = false;
-        
-        Debug.Log("[FuturiftMoving] Респавн завершен, управление восстановлено");
+        Debug.Log("[FuturiftMoving] Телепортирован на стартовую позицию");
     }
     
     /// <summary>
-    /// Разблокировка управления после задержки (УСТАРЕЛО - используется RespawnSequence)
+    /// Разблокировка управления игрока
     /// </summary>
-    private System.Collections.IEnumerator EnableInputAfterDelay(float delay)
+    public void EnableInput()
     {
-        yield return new WaitForSeconds(delay);
         isInputDisabled = false;
         Debug.Log("[FuturiftMoving] Управление разблокировано");
+    }
+    
+    /// <summary>
+    /// Респавн на стартовую позицию (для обратной совместимости)
+    /// </summary>
+    public void RespawnToStartPosition()
+    {
+        StartCoroutine(FullRespawnSequence());
+    }
+    
+    /// <summary>
+    /// Полная последовательность респавна (для обратной совместимости)
+    /// </summary>
+    private System.Collections.IEnumerator FullRespawnSequence()
+    {
+        yield return SlowdownSequence();
+        TeleportToStart();
+        yield return new WaitForSeconds(0.1f);
+        EnableInput();
     }
 
     #endregion

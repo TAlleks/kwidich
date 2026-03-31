@@ -25,6 +25,9 @@ public class GameScoreManager : MonoBehaviour
     [Header("Respawn Audio")]
     public AudioClip respawnSound;             // Звук респавна
     public AudioSource audioSource;            // Аудио источник
+    
+    [Header("Visual Effects")]
+    public VignetteController vignetteController; // Контроллер Vignette эффекта
 
     internal int playerScore = 0;
     private int enemyScore = 0;
@@ -113,24 +116,67 @@ public class GameScoreManager : MonoBehaviour
             Debug.Log($"[GameScoreManager] Мяч респавнен в позиции {ballRespawnPosition}");
         }
 
-        // 6. НОВОЕ: Телепортируем игрока на стартовую позицию
+        // 6. НОВОЕ: Запускаем замедление ВСЕХ (игрок + боты)
         IPlayerController player = GameObjectManager.Instance.GetPlayer();
+        
+        // Запускаем замедление игрока
         if (player != null)
         {
-            player.RespawnToStartPosition();
-            Debug.Log("[GameScoreManager] Игрок телепортирован на стартовую позицию");
-        }
-
-        // 7. НОВОЕ: Телепортируем всех ботов на стартовые позиции (мгновенно)
-        foreach (var bot in allBots)
-        {
-            bot.TeleportToStartPosition();
+            StartCoroutine(player.SlowdownSequence());
         }
         
-        // 8. Воспроизводим звук респавна (если есть)
+        // Запускаем замедление всех ботов
+        foreach (var bot in allBots)
+        {
+            StartCoroutine(bot.SlowdownSequence());
+        }
+        
+        // 7. Ждем окончания замедления (0.5 секунды)
+        yield return new WaitForSeconds(0.5f);
+
+        // 8. НОВОЕ: Vignette эффект + одновременная телепортация ВСЕХ
+        if (vignetteController != null)
+        {
+            yield return vignetteController.PlayTeleportEffect(() =>
+            {
+                // Телепортируем игрока
+                if (player != null)
+                {
+                    player.TeleportToStart();
+                    Debug.Log("[GameScoreManager] Игрок телепортирован");
+                }
+                
+                // Телепортируем всех ботов
+                foreach (var bot in allBots)
+                {
+                    bot.TeleportToStartPosition();
+                }
+                
+                Debug.Log("[GameScoreManager] Все телепортированы одновременно!");
+            });
+        }
+        else
+        {
+            // Если VignetteController не настроен - телепортируем без эффекта
+            Debug.LogWarning("[GameScoreManager] VignetteController не назначен! Телепортация без эффекта.");
+            
+            if (player != null)
+                player.TeleportToStart();
+                
+            foreach (var bot in allBots)
+                bot.TeleportToStartPosition();
+        }
+        
+        // 9. Воспроизводим звук респавна (если есть)
         if (respawnSound != null && audioSource != null)
         {
             audioSource.PlayOneShot(respawnSound);
+        }
+        
+        // 10. Разблокируем управление игрока
+        if (player != null)
+        {
+            player.EnableInput();
         }
 
         Debug.Log("[GameScoreManager] Все респавнены! Игра продолжается!");
