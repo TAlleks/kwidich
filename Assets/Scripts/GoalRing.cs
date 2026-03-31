@@ -1,10 +1,16 @@
 using UnityEngine;
+using System.Collections;
 
 public class GoalRing : MonoBehaviour
 {
     [Header("Audio")]
     [SerializeField] private AudioClip goalSound;
     [SerializeField] private AudioSource audioSource;
+    
+    [Header("Visual Effects")]
+    [SerializeField] private GameObject Fire;
+    [SerializeField] private float fireActiveDuration = 2.5f;
+
     GameScoreManager scoreManager;
     [Header("Goal Settings")]
     [SerializeField] private Team scoredTeam = Team.Enemy;
@@ -19,6 +25,10 @@ public class GoalRing : MonoBehaviour
 
         audioSource.playOnAwake = false;
         //audioSource.spatialBlend = 1f;
+        
+        // Отключаем Fire при старте
+        if (Fire != null)
+            Fire.SetActive(false);
         
         // Регистрируем ворота в менеджере
         GameObjectManager.Instance.RegisterGoal(this);
@@ -51,6 +61,12 @@ public class GoalRing : MonoBehaviour
 
         Debug.Log($"[GoalRing] ���! �������: {scoredTeam}", this);
         
+        // Включаем эффект огня
+        if (Fire != null)
+        {
+            StartCoroutine(ActivateFireEffect());
+        }
+        
         // Находим бота, который забил гол
         AIPlayer scorer = null;
         if (quaffle.GetCurrentHolder() != null)
@@ -60,6 +76,20 @@ public class GoalRing : MonoBehaviour
         
         // Передаем информацию о забившем боте
         GameScoreManager.Instance?.AddGoal(scoredTeam, scorer);
+    }
+
+    /// <summary>
+    /// Включает эффект огня на заданное время
+    /// </summary>
+    private IEnumerator ActivateFireEffect()
+    {
+        Fire.SetActive(true);
+        Debug.Log($"[GoalRing] Эффект огня включен на {fireActiveDuration} секунд");
+        
+        yield return new WaitForSeconds(fireActiveDuration);
+        
+        Fire.SetActive(false);
+        Debug.Log("[GoalRing] Эффект огня выключен");
     }
 
     public Team GetScoredTeam() => scoredTeam;

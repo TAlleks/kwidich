@@ -349,9 +349,17 @@ public class BroomController : MonoBehaviour, IPlayerController
     }
 
     /// <summary>
-    /// Респавн на стартовую позицию (мгновенная телепортация)
+    /// Респавн на стартовую позицию (с плавным замедлением)
     /// </summary>
     public void RespawnToStartPosition()
+    {
+        StartCoroutine(RespawnSequence());
+    }
+    
+    /// <summary>
+    /// Последовательность респавна с плавным замедлением
+    /// </summary>
+    private System.Collections.IEnumerator RespawnSequence()
     {
         // Блокируем управление
         isInputDisabled = true;
@@ -362,28 +370,50 @@ public class BroomController : MonoBehaviour, IPlayerController
             SetHasBall(false, null);
         }
         
+        // Плавное замедление (0.5 секунды)
+        float slowdownDuration = 0.5f;
+        float elapsed = 0f;
+        Vector3 initialVelocity = rb.linearVelocity;
+        
+        while (elapsed < slowdownDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / slowdownDuration;
+            
+            // Плавное замедление (ease-out)
+            rb.linearVelocity = Vector3.Lerp(initialVelocity, Vector3.zero, t);
+            rb.angularVelocity = Vector3.Lerp(rb.angularVelocity, Vector3.zero, t);
+            currentSpeed = Mathf.Lerp(currentSpeed, 0f, t);
+            
+            yield return null;
+        }
+        
+        // Полностью останавливаем
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        currentSpeed = 0f;
+        
+        // Небольшая пауза перед телепортацией
+        yield return new WaitForSeconds(0.1f);
+        
         // Телепортируем на стартовую позицию
         transform.SetPositionAndRotation(startPosition, startRotation);
         
-        // Обнуляем физику
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        
-        // Сбрасываем скорость и передачу
-        currentSpeed = 0f;
+        // Сбрасываем передачу
         currentGear = 0;
         
         // Сбрасываем направление полета
         flightDirection = transform.forward;
         
         // Разблокируем управление через небольшую задержку
-        StartCoroutine(EnableInputAfterDelay(0.1f));
+        yield return new WaitForSeconds(0.1f);
+        isInputDisabled = false;
         
-        Debug.Log("[BroomController] Респавн на стартовую позицию");
+        Debug.Log("[BroomController] Респавн завершен, управление восстановлено");
     }
     
     /// <summary>
-    /// Разблокировка управления после задержки
+    /// Разблокировка управления после задержки (УСТАРЕЛО - используется RespawnSequence)
     /// </summary>
     private System.Collections.IEnumerator EnableInputAfterDelay(float delay)
     {
