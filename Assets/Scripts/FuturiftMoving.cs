@@ -64,6 +64,11 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
     private bool isRecoveringFromCollision;
     private float collisionRecoveryTimer;
 
+    // Respawn
+    private Vector3 startPosition;
+    private Quaternion startRotation;
+    private bool isInputDisabled = false;  // Флаг блокировки управления
+
     #endregion
 
     #region Unity Lifecycle Methods
@@ -77,6 +82,9 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
     {
         InitializeBroom();
         _mainCamera = Camera.main;
+        
+        // Сохраняем стартовую позицию
+        SaveStartPosition();
         
         // Регистрируем игрока в менеджере
         GameObjectManager.Instance.RegisterPlayer(this);
@@ -93,11 +101,15 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
 
     void Update()
     {
-        HandleInput();
-        CheckGround();
-        UpdateSteering();
-        ThrowBallInput();
-        TryStealBall();
+        // Если управление заблокировано - не обрабатываем input
+        if (!isInputDisabled)
+        {
+            HandleInput();
+            CheckGround();
+            UpdateSteering();
+            ThrowBallInput();
+            TryStealBall();
+        }
         
         // НОВОЕ: Проверка синхронизации состояния мяча
         if (hasBall && quaffle != null)
@@ -116,8 +128,12 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
 
     void FixedUpdate()
     {
-        ApplyMovement();
-        ApplyHeightControl();
+        // Если управление заблокировано - не применяем движение
+        if (!isInputDisabled)
+        {
+            ApplyMovement();
+            ApplyHeightControl();
+        }
     }
 
     #endregion
@@ -328,6 +344,59 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
     public Quaffle CurrentQuaffle => quaffle;
     public Team Team => team;
     public Transform Transform => transform;
+
+    /// <summary>
+    /// Сохранить стартовую позицию (вызывается в начале игры)
+    /// </summary>
+    public void SaveStartPosition()
+    {
+        startPosition = transform.position;
+        startRotation = transform.rotation;
+        Debug.Log($"[FuturiftMoving] Стартовая позиция сохранена: {startPosition}");
+    }
+
+    /// <summary>
+    /// Респавн на стартовую позицию (мгновенная телепортация)
+    /// </summary>
+    public void RespawnToStartPosition()
+    {
+        // Блокируем управление
+        isInputDisabled = true;
+        
+        // Сбрасываем мяч если есть
+        if (hasBall && quaffle != null)
+        {
+            SetHasBall(false, null);
+        }
+        
+        // Телепортируем на стартовую позицию
+        transform.SetPositionAndRotation(startPosition, startRotation);
+        
+        // Обнуляем физику
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        // Сбрасываем скорость
+        currentSpeed = 0f;
+        
+        // Сбрасываем направление полета
+        flightDirection = transform.forward;
+        
+        // Разблокируем управление через небольшую задержку
+        StartCoroutine(EnableInputAfterDelay(0.1f));
+        
+        Debug.Log("[FuturiftMoving] Респавн на стартовую позицию");
+    }
+    
+    /// <summary>
+    /// Разблокировка управления после задержки
+    /// </summary>
+    private System.Collections.IEnumerator EnableInputAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        isInputDisabled = false;
+        Debug.Log("[FuturiftMoving] Управление разблокировано");
+    }
 
     #endregion
 

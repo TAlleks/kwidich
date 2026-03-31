@@ -50,7 +50,16 @@ public class GoalRing : MonoBehaviour
         }
 
         Debug.Log($"[GoalRing] ���! �������: {scoredTeam}", this);
-        GameScoreManager.Instance?.AddGoal(scoredTeam);
+        
+        // Находим бота, который забил гол
+        AIPlayer scorer = null;
+        if (quaffle.GetCurrentHolder() != null)
+        {
+            scorer = quaffle.GetCurrentHolder().GetComponent<AIPlayer>();
+        }
+        
+        // Передаем информацию о забившем боте
+        GameScoreManager.Instance?.AddGoal(scoredTeam, scorer);
     }
 
     public Team GetScoredTeam() => scoredTeam;

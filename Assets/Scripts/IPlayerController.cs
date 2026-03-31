@@ -30,4 +30,14 @@ public interface IPlayerController
     /// Установить состояние владения мячом
     /// </summary>
     void SetHasBall(bool value, Quaffle incomingQuaffle);
+
+    /// <summary>
+    /// Сохранить стартовую позицию (вызывается в начале игры)
+    /// </summary>
+    void SaveStartPosition();
+
+    /// <summary>
+    /// Респавн на стартовую позицию (мгновенная телепортация)
+    /// </summary>
+    void RespawnToStartPosition();
 }

@@ -38,7 +38,7 @@ public class AIPlayer : MonoBehaviour
     public float stealCooldown = 2f;                    // Базовый cooldown (для Attacker)
     public float stealFromPlayerCooldown = 5f;          // Отдельный cooldown для игрока
     private static float lastStealTime = -999f;
-    private float lastStealFromPlayerTime = -999f;      // Отдельный таймер для игрока
+    private static float lastStealFromPlayerTime = -999f;      // Отдельный таймер для игрока
     
     [Header("Push Settings")]
     public float pushForce = 25f;              // Сила толчка (увеличено с 15 до 25)
@@ -71,6 +71,19 @@ public class AIPlayer : MonoBehaviour
     public float pickupCooldown = 3f;
     private float lastThrowTime = -999f;
 
+    [Header("Pass Settings")]
+    public float passRange = 80f;              // Максимальная дистанция передачи
+    public float passAccuracy = 0.9f;          // Точность передачи
+    public float passCheckRadius = 5f;         // Радиус проверки блокировки
+    public float passLeadTime = 0.8f;          // Упреждение для движущихся целей
+    public LayerMask passBlockLayer;           // Слой для проверки блокировки (боты + игрок)
+    private AIPlayer currentPassTarget;        // Текущая цель для паса
+
+    [Header("Celebration Settings")]
+    public float celebrationDuration = 2.5f;   // Длительность празднования
+    public float celebrationHeight = 3f;       // Высота подпрыгивания
+    public float celebrationSpinSpeed = 360f;  // Скорость вращения (градусы/сек)
+    
     [Header("References")]
     public Transform model;
 
@@ -78,12 +91,25 @@ public class AIPlayer : MonoBehaviour
 
     #region Private Fields
 
+    public enum BotState
+    {
+        Normal,      // Обычное поведение
+        Celebrating, // Празднование гола
+        Returning    // Возврат на стартовую позицию
+    }
+
     internal Rigidbody rb;
     public bool hasBall = false;
     private Quaffle currentQuaffle;
     private Transform currentTarget;
     private float nextDecisionTime = 0f;
     private float decisionInterval = 0.3f;
+    
+    // Состояние бота
+    public BotState currentState = BotState.Normal;
+    private float celebrationStartTime = 0f;
+    private Vector3 startPosition;             // Стартовая позиция для возврата
+    private Quaternion startRotation;          // Стартовая ротация
     
     #endregion
 
@@ -95,6 +121,10 @@ public class AIPlayer : MonoBehaviour
         rb.useGravity = false;
         rb.linearDamping = 1f;
         rb.angularDamping = 3f;
+        
+        // Сохраняем стартовую позицию и ротацию
+        startPosition = transform.position;
+        startRotation = transform.rotation;
         
         // Регистрируем бота в менеджере
         GameObjectManager.Instance.RegisterBot(this);
@@ -147,6 +177,22 @@ public class AIPlayer : MonoBehaviour
 
     void Update()
     {
+        // Обработка состояний бота
+        switch (currentState)
+        {
+            case BotState.Celebrating:
+                UpdateCelebrationLogic();  // Только логика и вращение
+                return; // Не выполняем обычную логику во время празднования
+                
+            case BotState.Returning:
+                UpdateReturningLogic();    // Только логика проверки
+                return; // Не выполняем обычную логику во время возврата
+                
+            case BotState.Normal:
+                // Обычное поведение
+                break;
+        }
+        
         // Оптимизация: принимаем решения не каждый кадр, а с интервалом
         if (Time.time >= nextDecisionTime)
         {
@@ -180,9 +226,23 @@ public class AIPlayer : MonoBehaviour
 
     void FixedUpdate()
     {
-        MoveToTarget();
-        CheckActions();
-        RotateModel();
+        // Обработка состояний бота (физика)
+        switch (currentState)
+        {
+            case BotState.Celebrating:
+                UpdateCelebrationPhysics();  // Только физика (подпрыгивание)
+                return;
+                
+            case BotState.Returning:
+                UpdateReturningPhysics();    // Только физика (движение)
+                return;
+                
+            case BotState.Normal:
+                MoveToTarget();
+                CheckActions();
+                RotateModel();
+                break;
+        }
     }
 
     #endregion
@@ -193,6 +253,34 @@ public class AIPlayer : MonoBehaviour
     {
         if (hasBall)
         {
+            // НОВОЕ: Для Defender - проверяем возможность передачи
+            if (role == BotRole.Defender)
+            {
+                // Ищем лучшего союзника для паса
+                AIPlayer bestTeammate = GameObjectManager.Instance.FindBestTeammateForPass(
+                    transform.position, team, this, passRange);
+                
+                if (bestTeammate != null)
+                {
+                    // Проверяем, не заблокирован ли пас
+                    currentPassTarget = bestTeammate;
+                    
+                    if (!IsPassBlocked(transform.position, bestTeammate.transform.position))
+                    {
+                        // Пас открыт - передаем мяч
+                        PassToTeammate(bestTeammate);
+                        currentPassTarget = null;
+                        return;
+                    }
+                    else
+                    {
+                        Log("Пас заблокирован, пытаюсь вынести мяч сам");
+                        currentPassTarget = null;
+                    }
+                }
+            }
+            
+            // Если не Defender или нет открытых союзников - идем к воротам
             currentTarget = FindBestGoal();
             return;
         }
@@ -776,6 +864,232 @@ public class AIPlayer : MonoBehaviour
 
     #endregion
 
+    #region Pass System (Goalkeeper)
+
+    /// <summary>
+    /// Проверяет, заблокирован ли путь передачи врагами
+    /// </summary>
+    bool IsPassBlocked(Vector3 from, Vector3 to)
+    {
+        Vector3 direction = to - from;
+        float distance = direction.magnitude;
+        
+        // Используем SphereCast для проверки препятствий
+        RaycastHit[] hits = Physics.SphereCastAll(from, passCheckRadius, direction.normalized, distance, passBlockLayer);
+        
+        foreach (var hit in hits)
+        {
+            // Игнорируем себя и цель
+            if (hit.transform == transform || hit.transform == currentPassTarget.transform)
+                continue;
+                
+            // Проверяем, это враг?
+            AIPlayer bot = hit.transform.GetComponent<AIPlayer>();
+            if (bot != null && bot.team != team)
+            {
+                Log($"Пас заблокирован ботом {bot.name}");
+                return true;
+            }
+            
+            // Проверяем игрока
+            IPlayerController player = hit.transform.GetComponent<IPlayerController>();
+            if (player != null && player.Team != team)
+            {
+                Log("Пас заблокирован игроком");
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Рассчитывает целевую позицию для паса с упреждением
+    /// </summary>
+    Vector3 CalculatePassTarget(AIPlayer teammate)
+    {
+        if (teammate == null) return Vector3.zero;
+        
+        // Получаем скорость союзника
+        Rigidbody teammateRb = teammate.rb;
+        Vector3 teammateVelocity = teammateRb != null ? teammateRb.linearVelocity : Vector3.zero;
+        
+        // Если союзник движется - добавляем упреждение
+        if (teammateVelocity.magnitude > 1f)
+        {
+            Vector3 predictedPosition = teammate.transform.position + teammateVelocity * passLeadTime;
+            Log($"Пас с упреждением к {teammate.name}");
+            return predictedPosition;
+        }
+        
+        return teammate.transform.position;
+    }
+
+    /// <summary>
+    /// Передает мяч союзнику
+    /// </summary>
+    void PassToTeammate(AIPlayer teammate)
+    {
+        if (!hasBall || currentQuaffle == null || teammate == null) return;
+        
+        // Проверяем, что мяч действительно у нас
+        if (!currentQuaffle.IsHeldBy(transform))
+        {
+            Log("Пытаюсь передать мяч, который мне не принадлежит");
+            SetHasBall(false, null);
+            return;
+        }
+
+        Vector3 targetPos = CalculatePassTarget(teammate);
+        Vector3 dir = (targetPos - transform.position).normalized;
+        dir.y += 0.15f; // Небольшой подъем для паса
+        
+        // Добавляем небольшую неточность в зависимости от passAccuracy
+        if (Random.value > passAccuracy)
+        {
+            dir += Random.insideUnitSphere * 0.3f;
+            dir.Normalize();
+        }
+
+        currentQuaffle.Throw(dir);
+        lastThrowTime = Time.time;
+        
+        Log($"Передал мяч союзнику {teammate.name}");
+    }
+
+    #endregion
+
+    #region Celebration System
+
+    /// <summary>
+    /// Начинает празднование гола
+    /// </summary>
+    public void StartCelebration()
+    {
+        if (currentState != BotState.Normal) return;
+        
+        currentState = BotState.Celebrating;
+        celebrationStartTime = Time.time;
+        
+        Log("Начинаю празднование!");
+    }
+
+    /// <summary>
+    /// Обновление логики празднования (вызывается в Update)
+    /// </summary>
+    void UpdateCelebrationLogic()
+    {
+        float elapsed = Time.time - celebrationStartTime;
+        
+        if (elapsed >= celebrationDuration)
+        {
+            // Празднование закончилось
+            currentState = BotState.Normal;
+            Log("Празднование завершено");
+            return;
+        }
+        
+        // Вращение (не физика, поэтому в Update)
+        if (model != null)
+        {
+            model.Rotate(Vector3.up, celebrationSpinSpeed * Time.deltaTime);
+        }
+        else
+        {
+            transform.Rotate(Vector3.up, celebrationSpinSpeed * Time.deltaTime);
+        }
+    }
+
+    /// <summary>
+    /// Обновление физики празднования (вызывается в FixedUpdate)
+    /// </summary>
+    void UpdateCelebrationPhysics()
+    {
+        float elapsed = Time.time - celebrationStartTime;
+        float progress = elapsed / celebrationDuration;
+        
+        // Подпрыгивание (синусоида) - физика, поэтому в FixedUpdate
+        float bounce = Mathf.Sin(progress * Mathf.PI * 4f) * celebrationHeight;
+        Vector3 targetVelocity = Vector3.up * bounce;
+        rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, targetVelocity, Time.fixedDeltaTime * 5f);
+    }
+
+    /// <summary>
+    /// Начинает возврат на стартовую позицию (УСТАРЕЛО - используйте TeleportToStartPosition)
+    /// </summary>
+    public void StartReturning()
+    {
+        // Сбрасываем мяч если есть
+        if (hasBall && currentQuaffle != null)
+        {
+            SetHasBall(false, null);
+        }
+        
+        currentState = BotState.Returning;
+        Log("Возвращаюсь на стартовую позицию");
+    }
+
+    /// <summary>
+    /// Обновление логики возврата на позицию (вызывается в Update)
+    /// </summary>
+    void UpdateReturningLogic()
+    {
+        float distanceToStart = Vector3.Distance(transform.position, startPosition);
+        
+        // Если достигли стартовой позиции
+        if (distanceToStart < 2f)
+        {
+            currentState = BotState.Normal;
+            rb.linearVelocity = Vector3.zero;
+            Log("Вернулся на стартовую позицию");
+        }
+    }
+
+    /// <summary>
+    /// Обновление физики возврата на позицию (вызывается в FixedUpdate)
+    /// </summary>
+    void UpdateReturningPhysics()
+    {
+        // Движение к стартовой позиции
+        Vector3 dirToStart = (startPosition - transform.position).normalized;
+        rb.linearVelocity = dirToStart * (moveSpeed * roleSpeedMultiplier * 0.7f);
+    }
+
+    /// <summary>
+    /// Телепортирует бота на стартовую позицию (мгновенно)
+    /// </summary>
+    public void TeleportToStartPosition()
+    {
+        // Сбрасываем мяч если есть
+        if (hasBall && currentQuaffle != null)
+        {
+            SetHasBall(false, null);
+        }
+        
+        // Телепортируем
+        transform.SetPositionAndRotation(startPosition, startRotation);
+        
+        // Обнуляем физику
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        // Сбрасываем состояние
+        currentState = BotState.Normal;
+        
+        Log("Телепортирован на стартовую позицию");
+    }
+
+    /// <summary>
+    /// Сброс бота в нормальное состояние (вызывается из GameScoreManager)
+    /// </summary>
+    public void ResetToNormal()
+    {
+        currentState = BotState.Normal;
+        rb.linearVelocity = Vector3.zero;
+    }
+
+    #endregion
+
     #region Finding Targets
 
     Transform FindBestGoal()
@@ -838,10 +1152,42 @@ public class AIPlayer : MonoBehaviour
             }
         }
         
+        // НОВОЕ: Визуализация передачи для Defender
+        if (role == BotRole.Defender && hasBall && currentPassTarget != null)
+        {
+            // Линия передачи
+            bool blocked = IsPassBlocked(transform.position, currentPassTarget.transform.position);
+            Gizmos.color = blocked ? Color.red : Color.green;
+            Gizmos.DrawLine(transform.position, currentPassTarget.transform.position);
+            
+            // Целевая позиция с упреждением
+            Vector3 passTarget = CalculatePassTarget(currentPassTarget);
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(passTarget, 1f);
+            
+            // Радиус проверки блокировки
+            Gizmos.color = new Color(1f, 0.5f, 0f, 0.3f);
+            Vector3 midPoint = (transform.position + currentPassTarget.transform.position) / 2f;
+            Gizmos.DrawWireSphere(midPoint, passCheckRadius);
+        }
+        
         // Индикатор роли
         Gizmos.color = role == BotRole.Attacker ? Color.red : 
                        role == BotRole.Defender ? Color.blue : Color.yellow;
         Gizmos.DrawWireCube(transform.position + Vector3.up * 3f, Vector3.one * 0.5f);
+        
+        // Индикатор состояния
+        if (currentState == BotState.Celebrating)
+        {
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawWireSphere(transform.position + Vector3.up * 5f, 2f);
+        }
+        else if (currentState == BotState.Returning)
+        {
+            Gizmos.color = Color.white;
+            Gizmos.DrawLine(transform.position, startPosition);
+            Gizmos.DrawWireSphere(startPosition, 1f);
+        }
         
         // НОВОЕ: Визуализация для Defender
         if (role == BotRole.Defender)

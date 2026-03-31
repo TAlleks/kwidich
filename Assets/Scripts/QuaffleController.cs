@@ -104,8 +104,9 @@ public class Quaffle : MonoBehaviour
         // Устанавливаем нового владельца
         holder = newHolder;
         isHeld = true;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        
+        // ИСПРАВЛЕНО: Сначала делаем kinematic, потом отключаем коллайдер
+        // Для kinematic тела не нужно обнулять velocity - оно игнорирует физику
         rb.isKinematic = true;
         rb.useGravity = false;
         col.gameObject.SetActive(false);
@@ -224,6 +225,37 @@ public class Quaffle : MonoBehaviour
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         transform.SetPositionAndRotation(startPos, startRot);
+    }
+
+    /// <summary>
+    /// Респавн мяча в указанной позиции (для системы голов)
+    /// </summary>
+    public void RespawnAt(Vector3 position)
+    {
+        // Снимаем флаг у текущего владельца если есть
+        if (isHeld && holder != null)
+        {
+            IPlayerController currentPlayer = holder.GetComponentInParent<IPlayerController>();
+            AIPlayer currentAI = holder.GetComponentInParent<AIPlayer>();
+            
+            if (currentPlayer != null)
+            {
+                currentPlayer.SetHasBall(false, null);
+            }
+            else if (currentAI != null)
+            {
+                currentAI.SetHasBall(false, null);
+            }
+        }
+        
+        isHeld = false;
+        holder = null;
+        rb.isKinematic = false;
+        rb.useGravity = false;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        transform.position = position;
+        canBePickedUpTime = Time.time + 0.5f; // Небольшая задержка перед подбором
     }
 
     void OnTriggerEnter(Collider other)

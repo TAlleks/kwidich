@@ -65,7 +65,10 @@ public class BroomController : MonoBehaviour, IPlayerController
     private bool isRecoveringFromCollision;
     private float collisionRecoveryTimer;
 
-
+    // Respawn
+    private Vector3 startPosition;
+    private Quaternion startRotation;
+    private bool isInputDisabled = false;  // Флаг блокировки управления
 
     #endregion
 
@@ -75,6 +78,9 @@ public class BroomController : MonoBehaviour, IPlayerController
     {
         InitializeBroom();
         _mainCamera = Camera.main;
+        
+        // Сохраняем стартовую позицию
+        SaveStartPosition();
         
         // Регистрируем игрока в менеджере
         GameObjectManager.Instance.RegisterPlayer(this);
@@ -91,12 +97,16 @@ public class BroomController : MonoBehaviour, IPlayerController
 
     void Update()
     {
-        HandleInput();
-        CheckGround();
-        UpdateSteering();
-        HandleCollisionRecovery();
-        ThrowBallInput();
-        TryStealBall();
+        // Если управление заблокировано - не обрабатываем input
+        if (!isInputDisabled)
+        {
+            HandleInput();
+            CheckGround();
+            UpdateSteering();
+            HandleCollisionRecovery();
+            ThrowBallInput();
+            TryStealBall();
+        }
         
         // НОВОЕ: Проверка синхронизации состояния мяча
         if (hasBall && quaffle != null)
@@ -116,8 +126,12 @@ public class BroomController : MonoBehaviour, IPlayerController
 
     void FixedUpdate()
     {
-        ApplyMovement();
-        ApplyHeightControl();
+        // Если управление заблокировано - не применяем движение
+        if (!isInputDisabled)
+        {
+            ApplyMovement();
+            ApplyHeightControl();
+        }
     }
 
     //void OnCollisionEnter(Collision col)
@@ -323,6 +337,60 @@ public class BroomController : MonoBehaviour, IPlayerController
     public Quaffle CurrentQuaffle => quaffle;
     public Team Team => team;
     public Transform Transform => transform;
+
+    /// <summary>
+    /// Сохранить стартовую позицию (вызывается в начале игры)
+    /// </summary>
+    public void SaveStartPosition()
+    {
+        startPosition = transform.position;
+        startRotation = transform.rotation;
+        Debug.Log($"[BroomController] Стартовая позиция сохранена: {startPosition}");
+    }
+
+    /// <summary>
+    /// Респавн на стартовую позицию (мгновенная телепортация)
+    /// </summary>
+    public void RespawnToStartPosition()
+    {
+        // Блокируем управление
+        isInputDisabled = true;
+        
+        // Сбрасываем мяч если есть
+        if (hasBall && quaffle != null)
+        {
+            SetHasBall(false, null);
+        }
+        
+        // Телепортируем на стартовую позицию
+        transform.SetPositionAndRotation(startPosition, startRotation);
+        
+        // Обнуляем физику
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        // Сбрасываем скорость и передачу
+        currentSpeed = 0f;
+        currentGear = 0;
+        
+        // Сбрасываем направление полета
+        flightDirection = transform.forward;
+        
+        // Разблокируем управление через небольшую задержку
+        StartCoroutine(EnableInputAfterDelay(0.1f));
+        
+        Debug.Log("[BroomController] Респавн на стартовую позицию");
+    }
+    
+    /// <summary>
+    /// Разблокировка управления после задержки
+    /// </summary>
+    private System.Collections.IEnumerator EnableInputAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        isInputDisabled = false;
+        Debug.Log("[BroomController] Управление разблокировано");
+    }
 
     #endregion
 

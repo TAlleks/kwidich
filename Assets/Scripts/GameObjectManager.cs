@@ -213,6 +213,87 @@ public class GameObjectManager : MonoBehaviour
         return best;
     }
 
+    /// <summary>
+    /// Найти лучшего союзника для передачи мяча
+    /// </summary>
+    /// <param name="fromPosition">Позиция передающего</param>
+    /// <param name="team">Команда передающего</param>
+    /// <param name="excludeBot">Исключить этого бота из поиска (обычно сам передающий)</param>
+    /// <param name="maxPassDistance">Максимальная дистанция передачи</param>
+    /// <returns>Лучший союзник для паса или null</returns>
+    public AIPlayer FindBestTeammateForPass(Vector3 fromPosition, Team team, AIPlayer excludeBot, float maxPassDistance = 80f)
+    {
+        AIPlayer bestTeammate = null;
+        float bestScore = -Mathf.Infinity;
+
+        // Находим ворота противника для оценки позиций
+        GoalRing enemyGoal = FindBestGoal(fromPosition, team);
+        if (enemyGoal == null) return null;
+
+        Vector3 enemyGoalPos = enemyGoal.transform.position;
+
+        foreach (var bot in allBots)
+        {
+            // Пропускаем null, себя, врагов и ботов не своей команды
+            if (bot == null || bot == excludeBot || bot.team != team) continue;
+
+            float distanceToBot = Vector3.Distance(fromPosition, bot.transform.position);
+            
+            // Пропускаем слишком далеких союзников
+            if (distanceToBot > maxPassDistance) continue;
+
+            // Оценка позиции союзника
+            float distanceToEnemyGoal = Vector3.Distance(bot.transform.position, enemyGoalPos);
+            
+            // Чем ближе к воротам противника - тем лучше
+            // Чем ближе к нам - тем хуже (не хотим пасовать назад)
+            float positionScore = (maxPassDistance - distanceToEnemyGoal) / maxPassDistance;
+            
+            // Бонус для атакующих
+            if (bot.role == AIPlayer.BotRole.Attacker)
+            {
+                positionScore += 0.3f;
+            }
+            else if (bot.role == AIPlayer.BotRole.Support)
+            {
+                positionScore += 0.15f;
+            }
+            
+            // Штраф за слишком близкую дистанцию (не хотим пасовать рядом стоящим)
+            if (distanceToBot < 10f)
+            {
+                positionScore -= 0.5f;
+            }
+
+            if (positionScore > bestScore)
+            {
+                bestScore = positionScore;
+                bestTeammate = bot;
+            }
+        }
+
+        return bestTeammate;
+    }
+
+    /// <summary>
+    /// Получить всех союзников определенной команды
+    /// </summary>
+    public List<AIPlayer> GetTeammates(Team team, AIPlayer excludeBot = null)
+    {
+        List<AIPlayer> teammates = new List<AIPlayer>();
+        
+        foreach (var bot in allBots)
+        {
+            if (bot == null || bot == excludeBot) continue;
+            if (bot.team == team)
+            {
+                teammates.Add(bot);
+            }
+        }
+        
+        return teammates;
+    }
+
     #endregion
 
     #region Unity Lifecycle
