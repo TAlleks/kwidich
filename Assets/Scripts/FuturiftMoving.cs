@@ -21,9 +21,6 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
     public float verticalAcceleration = 10f;
     public float maxVerticalSpeed = 12f;
 
-    [Header("Steering")]
-    [SerializeField] private float steeringSpeed = 6f;
-
     [Header("Team")]
     public Team team = Team.Player;
 
@@ -474,7 +471,7 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
         currentSteeringAngle = Mathf.Lerp(
             currentSteeringAngle,
             targetSteeringAngle,
-            steeringSpeed * Time.deltaTime
+            steeringSensitivity * Time.deltaTime
         );
 
         if (isRecoveringFromCollision)

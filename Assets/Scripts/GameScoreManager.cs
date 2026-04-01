@@ -38,7 +38,6 @@ public class GameScoreManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
         }
         else
         {
@@ -46,7 +45,7 @@ public class GameScoreManager : MonoBehaviour
             return;
         }
 
-        // ��������� UI ��� ������
+         //��������� UI ��� ������
         UpdateScoreUI();
     }
 
@@ -179,7 +178,7 @@ public class GameScoreManager : MonoBehaviour
             player.EnableInput();
         }
 
-        Debug.Log("[GameScoreManager] Все респавнены! Игра продолжается!");
+        //Debug.Log("[GameScoreManager] Все респавнены! Игра продолжается!");
         isHandlingGoal = false;
     }
 
