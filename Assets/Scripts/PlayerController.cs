@@ -532,11 +532,11 @@ public class AIPlayer : MonoBehaviour
         switch (role)
         {
             case BotRole.Attacker:
-                return 5f;      // Часто атакует игрока
+                return 4f;      // Часто атакует игрока
             case BotRole.Support:
                 return 4f;      // Средняя частота
             case BotRole.Defender:
-                return 6f;      // Редко атакует игрока
+                return 4f;      // Редко атакует игрока
             default:
                 return stealFromPlayerCooldown;
         }

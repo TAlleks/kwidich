@@ -342,6 +342,7 @@ public class FuturiftMoving : MonoBehaviour, IPlayerController
         else
         {
             lastLostBallTime = Time.time;
+            lastStealTime = Time.time; // НОВОЕ: блокируем кражу после потери мяча
             Log("Бросил / Потерял мяч");
         }
 
