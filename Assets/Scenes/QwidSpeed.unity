@@ -568,7 +568,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -1473,7 +1473,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &196234268
 Transform:
   m_ObjectHideFlags: 0
@@ -1513,7 +1513,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -3310,7 +3310,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &352728743
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3334,7 +3334,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -4838,7 +4838,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -10029,7 +10029,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -11799,7 +11799,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -15670,7 +15670,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.034
+  m_Radius: 0.032
   m_Center: {x: -0.00019742898, y: 0.019986456, z: 0.0000009342661}
 --- !u!114 &8649975352249936198
 MonoBehaviour:
@@ -16315,7 +16315,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 6
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
