@@ -563,12 +563,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -1497,12 +1497,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -1514,7 +1514,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   targetOffsetRadius: 1.5
-  pickupCooldown: 3
+  pickupCooldown: 2
   passRange: 30
   passAccuracy: 0.9
   passCheckRadius: 1.5
@@ -3307,12 +3307,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -3324,7 +3324,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   targetOffsetRadius: 1.5
-  pickupCooldown: 3
+  pickupCooldown: 2
   passRange: 30
   passAccuracy: 0.9
   passCheckRadius: 1.5
@@ -4800,12 +4800,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -8781,7 +8781,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1767192439, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: field of view
-      value: 55
+      value: 60
       objectReference: {fileID: 0}
     - target: {fileID: 58445280694286476, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_Layer
@@ -9980,12 +9980,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -11739,12 +11739,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -11756,7 +11756,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   targetOffsetRadius: 1.5
-  pickupCooldown: 3
+  pickupCooldown: 2
   passRange: 30
   passAccuracy: 0.9
   passCheckRadius: 1.5
@@ -12471,7 +12471,7 @@ MonoBehaviour:
   hasBall: 0
   pickupCooldown: 1
   stealDistance: 2.7
-  stealCooldown: 4.5
+  stealCooldown: 4
   pushForce: 25
   pushUpwardForce: 6
 --- !u!114 &919132148268335975
@@ -16244,12 +16244,12 @@ MonoBehaviour:
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
   stealCooldown: 2
-  stealFromPlayerCooldown: 3.5
+  stealFromPlayerCooldown: 4.5
   pushForce: 25
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 8
+  moveSpeed: 5
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
