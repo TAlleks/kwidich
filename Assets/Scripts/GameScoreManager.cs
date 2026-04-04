@@ -107,15 +107,7 @@ public class GameScoreManager : MonoBehaviour
             yield break; // Игра окончена, выходим
         }
 
-        // 5. Респавним мяч в центре поля
-        Quaffle[] quaffles = FindObjectsByType<Quaffle>(FindObjectsSortMode.None);
-        foreach (var quaffle in quaffles)
-        {
-            quaffle.RespawnAt(ballRespawnPosition);
-            Debug.Log($"[GameScoreManager] Мяч респавнен в позиции {ballRespawnPosition}");
-        }
-
-        // 6. НОВОЕ: Запускаем замедление ВСЕХ (игрок + боты)
+        // 5. НОВОЕ: Запускаем замедление ВСЕХ (игрок + боты)
         IPlayerController player = GameObjectManager.Instance.GetPlayer();
         
         // Запускаем замедление игрока
@@ -130,10 +122,10 @@ public class GameScoreManager : MonoBehaviour
             StartCoroutine(bot.SlowdownSequence());
         }
         
-        // 7. Ждем окончания замедления (0.5 секунды)
+        // 6. Ждем окончания замедления (0.5 секунды)
         yield return new WaitForSeconds(0.5f);
 
-        // 8. НОВОЕ: Vignette эффект + одновременная телепортация ВСЕХ
+        // 7. НОВОЕ: Vignette эффект + одновременная телепортация ВСЕХ
         if (vignetteController != null)
         {
             yield return vignetteController.PlayTeleportEffect(() =>
@@ -151,6 +143,14 @@ public class GameScoreManager : MonoBehaviour
                     bot.TeleportToStartPosition();
                 }
                 
+                // ИСПРАВЛЕНО: Респавним мяч ПОСЛЕ телепортации всех
+                Quaffle[] quaffles = FindObjectsByType<Quaffle>(FindObjectsSortMode.None);
+                foreach (var quaffle in quaffles)
+                {
+                    quaffle.RespawnAt(ballRespawnPosition);
+                    Debug.Log($"[GameScoreManager] Мяч респавнен в позиции {ballRespawnPosition}");
+                }
+                
                 Debug.Log("[GameScoreManager] Все телепортированы одновременно!");
             });
         }
@@ -164,15 +164,23 @@ public class GameScoreManager : MonoBehaviour
                 
             foreach (var bot in allBots)
                 bot.TeleportToStartPosition();
+            
+            // ИСПРАВЛЕНО: Респавним мяч ПОСЛЕ телепортации всех
+            Quaffle[] quaffles = FindObjectsByType<Quaffle>(FindObjectsSortMode.None);
+            foreach (var quaffle in quaffles)
+            {
+                quaffle.RespawnAt(ballRespawnPosition);
+                Debug.Log($"[GameScoreManager] Мяч респавнен в позиции {ballRespawnPosition}");
+            }
         }
         
-        // 9. Воспроизводим звук респавна (если есть)
+        // 8. Воспроизводим звук респавна (если есть)
         if (respawnSound != null && audioSource != null)
         {
             audioSource.PlayOneShot(respawnSound);
         }
         
-        // 10. Разблокируем управление игрока
+        // 9. Разблокируем управление игрока
         if (player != null)
         {
             player.EnableInput();

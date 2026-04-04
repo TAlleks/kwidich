@@ -166,7 +166,7 @@ public class GameObjectManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Найти ближайшего бота с мячом
+    /// Найти ближайшего бота с мячом (ТОЛЬКО ВРАГОВ, не союзников)
     /// </summary>
     public AIPlayer FindNearestBotWithBall(Vector3 position, AIPlayer excludeBot = null)
     {
@@ -176,6 +176,9 @@ public class GameObjectManager : MonoBehaviour
         foreach (var bot in allBots)
         {
             if (bot == null || bot == excludeBot || !bot.hasBall) continue;
+            
+            // НОВОЕ: Пропускаем союзников (ищем только врагов)
+            if (excludeBot != null && bot.team == excludeBot.team) continue;
 
             float dist = Vector3.Distance(position, bot.transform.position);
             if (dist < minDist)
@@ -186,6 +189,22 @@ public class GameObjectManager : MonoBehaviour
         }
 
         return nearest;
+    }
+
+    /// <summary>
+    /// Найти союзника с мячом (для командной игры)
+    /// </summary>
+    public AIPlayer FindTeammateWithBall(Team team, AIPlayer excludeBot = null)
+    {
+        foreach (var bot in allBots)
+        {
+            if (bot == null || bot == excludeBot) continue;
+            if (bot.team == team && bot.hasBall)
+            {
+                return bot;
+            }
+        }
+        return null;
     }
 
     /// <summary>

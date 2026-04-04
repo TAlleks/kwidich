@@ -89,6 +89,23 @@ public class AIPlayer : MonoBehaviour
     public float passLeadTime = 0.8f;          // Упреждение для движущихся целей
     public LayerMask passBlockLayer;           // Слой для проверки блокировки (боты + игрок)
     private AIPlayer currentPassTarget;        // Текущая цель для паса
+    
+    [Header("Team Play Settings")]
+    public float pressureRadius = 5f;          // Радиус проверки давления врагов
+    public int minEnemiesForPressure = 1;      // Мин. кол-во врагов для давления
+    public float supportDistance = 12f;        // Дистанция следования за союзником
+    public float openForPassRadius = 6f;       // Радиус проверки "открытости" (увеличено с 3 до 6)
+    public float minPassDistance = 5f;         // Минимальная дистанция для паса
+    public float maxPassDistance = 30f;        // Максимальная дистанция для паса
+    public float attackerOffsetForward = 20f;  // Attacker впереди союзника (увеличено с 12 до 20)
+    public float supportOffsetSide = 15f;      // Support сбоку от союзника (увеличено с 10 до 15)
+    public float defenderOffsetBack = 12f;     // Defender сзади союзника (увеличено с 10 до 12)
+    public float arrivalThreshold = 3f;        // Порог прибытия к позиции поддержки
+    
+    // Флаги состояния командной игры
+    private bool isUnderPressure = false;      // Под давлением врагов
+    public bool isOpenForPass = false;         // Открыт для паса (PUBLIC для других ботов)
+    private AIPlayer supportingTeammate = null; // Союзник, которого поддерживаем
 
     [Header("Celebration Settings")]
     public float celebrationDuration = 2.5f;   // Длительность празднования
@@ -272,9 +289,20 @@ public class AIPlayer : MonoBehaviour
                     }
                 }
                 
-                MoveToTarget();
-                CheckActions();
-                RotateModel();
+                // НОВОЕ: Проверка поддержки союзника
+                if (!hasBall && supportingTeammate != null)
+                {
+                    // Поддерживаем союзника - специальная логика движения
+                    SupportTeammateWithBall();
+                    RotateModel();
+                }
+                else
+                {
+                    // Обычная логика движения
+                    MoveToTarget();
+                    CheckActions();
+                    RotateModel();
+                }
                 break;
         }
     }
@@ -287,51 +315,242 @@ public class AIPlayer : MonoBehaviour
     {
         if (hasBall)
         {
-            // НОВОЕ: Для Defender - проверяем возможность передачи
-            if (role == BotRole.Defender)
+            // Логика с мячом
+            MakeDecisionWithBall();
+        }
+        else
+        {
+            // Логика без мяча
+            MakeDecisionWithoutBall();
+        }
+    }
+
+    /// <summary>
+    /// Логика принятия решений когда у бота ЕСТЬ мяч
+    /// ПРОСТАЯ И РАБОЧАЯ ВЕРСИЯ
+    /// </summary>
+    void MakeDecisionWithBall()
+    {
+        // Проверяем давление врагов
+        isUnderPressure = IsUnderPressure();
+        
+        // ПРОСТАЯ ЛОГИКА: Если под давлением - пытаемся пас, иначе - несем сами
+        if (isUnderPressure)
+        {
+            // Ищем ЛЮБОГО открытого союзника впереди
+            AIPlayer bestTeammate = FindOpenTeammateAhead();
+            
+            if (bestTeammate != null)
             {
-                // Ищем лучшего союзника для паса
-                AIPlayer bestTeammate = GameObjectManager.Instance.FindBestTeammateForPass(
-                    transform.position, team, this, passRange);
+                // Нашли открытого союзника - пасуем!
+                PassToTeammate(bestTeammate);
+                Log($"ПАС! {name} → {bestTeammate.name} (команда: {bestTeammate.team})");
+                return;
+            }
+            else
+            {
+                Log("Под давлением, но нет открытых союзников - несу сам");
+            }
+        }
+        
+        // Несем к воротам
+        currentTarget = FindBestGoal();
+    }
+    
+    /// <summary>
+    /// ПРОСТОЙ МЕТОД: Находит ЛЮБОГО открытого союзника впереди
+    /// </summary>
+    AIPlayer FindOpenTeammateAhead()
+    {
+        Transform enemyGoal = FindBestGoal();
+        if (enemyGoal == null) return null;
+        
+        float myDistToGoal = Vector3.Distance(transform.position, enemyGoal.position);
+        var allBots = GameObjectManager.Instance.GetAllBots();
+        
+        foreach (var bot in allBots)
+        {
+            // Пропускаем себя
+            if (bot == null || bot == this) continue;
+            
+            // КРИТИЧНО: Только союзники!
+            if (bot.team != team)
+            {
+                Log($"Пропускаю {bot.name} - враг (его команда: {bot.team}, моя: {team})");
+                continue;
+            }
+            
+            // Проверка дистанции
+            float distance = Vector3.Distance(transform.position, bot.transform.position);
+            if (distance < 5f || distance > 30f) continue;
+            
+            // Проверка: союзник ВПЕРЕДИ (ближе к воротам)
+            float botDistToGoal = Vector3.Distance(bot.transform.position, enemyGoal.position);
+            if (botDistToGoal >= myDistToGoal)
+            {
+                Log($"Пропускаю {bot.name} - сзади меня");
+                continue;
+            }
+            
+            // Проверка: союзник открыт (мало врагов рядом)
+            if (!bot.isOpenForPass)
+            {
+                Log($"Пропускаю {bot.name} - закрыт врагами");
+                continue;
+            }
+            
+            // Нашли подходящего!
+            Log($"НАШЕЛ СОЮЗНИКА ДЛЯ ПАСА: {bot.name} (команда: {bot.team}, открыт: {bot.isOpenForPass})");
+            return bot;
+        }
+        
+        return null;
+    }
+    
+    /// <summary>
+    /// НОВЫЙ МЕТОД: Находит лучшего союзника для паса с учетом открытости
+    /// ИСПРАВЛЕННАЯ ВЕРСИЯ: строгая проверка команды и позиции
+    /// </summary>
+    AIPlayer FindBestTeammateForPassImproved()
+    {
+        var allBots = GameObjectManager.Instance.GetAllBots();
+        AIPlayer bestTeammate = null;
+        float bestScore = -Mathf.Infinity;
+        
+        foreach (var bot in allBots)
+        {
+            // КРИТИЧНО: Пропускаем себя и ВРАГОВ
+            if (bot == null || bot == this) continue;
+            if (bot.team != team) continue; // СТРОГАЯ ПРОВЕРКА КОМАНДЫ!
+            
+            float distance = Vector3.Distance(transform.position, bot.transform.position);
+            
+            // Пропускаем слишком близких или далеких
+            if (distance < minPassDistance || distance > maxPassDistance) continue;
+            
+            // НОВОЕ: Проверяем, что союзник впереди нас (ближе к воротам)
+            Transform enemyGoal = FindBestGoal();
+            if (enemyGoal != null)
+            {
+                float myDistToGoal = Vector3.Distance(transform.position, enemyGoal.position);
+                float botDistToGoal = Vector3.Distance(bot.transform.position, enemyGoal.position);
                 
-                if (bestTeammate != null)
+                // Пропускаем союзников, которые ДАЛЬШЕ от ворот (пас назад)
+                if (botDistToGoal >= myDistToGoal)
                 {
-                    // Проверяем, не заблокирован ли пас
-                    currentPassTarget = bestTeammate;
-                    
-                    if (!IsPassBlocked(transform.position, bestTeammate.transform.position))
-                    {
-                        // Пас открыт - передаем мяч
-                        PassToTeammate(bestTeammate);
-                        currentPassTarget = null;
-                        return;
-                    }
-                    else
-                    {
-                        Log("Пас заблокирован, пытаюсь вынести мяч сам");
-                        currentPassTarget = null;
-                    }
+                    continue; // Не пасуем назад!
                 }
             }
             
-            // Если не Defender или нет открытых союзников - идем к воротам
-            currentTarget = FindBestGoal();
+            // Оценка союзника
+            float score = 0f;
+            
+            // 1. Огромный приоритет открытым ботам
+            if (bot.isOpenForPass)
+            {
+                score += 100f;
+            }
+            else
+            {
+                // Если не открыт - сильный штраф
+                score -= 50f;
+            }
+            
+            // 2. Бонус за близость к воротам противника
+            if (enemyGoal != null)
+            {
+                float distToGoal = Vector3.Distance(bot.transform.position, enemyGoal.position);
+                score += (100f - distToGoal) * 0.5f;
+            }
+            
+            // 3. Бонус за роль
+            if (bot.role == BotRole.Attacker) score += 30f;
+            else if (bot.role == BotRole.Support) score += 15f;
+            
+            // 4. Штраф за дистанцию до союзника
+            score -= distance * 0.3f;
+            
+            // 5. НОВОЕ: Проверяем, нет ли врагов между нами
+            if (IsPassBlocked(transform.position, bot.transform.position))
+            {
+                score -= 100f; // Огромный штраф за заблокированный пас
+            }
+            
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestTeammate = bot;
+            }
+        }
+        
+        // НОВОЕ: Возвращаем только если score положительный
+        if (bestScore > 0f)
+        {
+            return bestTeammate;
+        }
+        
+        return null; // Нет подходящих союзников
+    }
+
+    /// <summary>
+    /// Логика принятия решений когда у бота НЕТ мяча
+    /// ИСПРАВЛЕНО: Правильные приоритеты - враги важнее союзников!
+    /// </summary>
+    void MakeDecisionWithoutBall()
+    {
+        // ПРИОРИТЕТ 1: Свободный мяч (если cooldown прошел)
+        if (Time.time >= lastThrowTime + pickupCooldown)
+        {
+            Transform freeQuaffle = FindNearestFreeQuaffle();
+            if (freeQuaffle != null)
+            {
+                currentTarget = freeQuaffle;
+                supportingTeammate = null;
+                isOpenForPass = false;
+                GenerateNewTargetOffset();
+                Log("Цель: свободный мяч");
+                return;
+            }
+        }
+        
+        // ПРИОРИТЕТ 2: Враг с мячом (ВСЕГДА преследуем!)
+        Transform enemyWithBall = FindNearestBotWithBall();
+        if (enemyWithBall != null)
+        {
+            currentTarget = enemyWithBall;
+            supportingTeammate = null;
+            isOpenForPass = false;
+            Log($"Цель: враг с мячом {enemyWithBall.name}");
             return;
         }
-
-        // Логика в зависимости от роли
-        switch (role)
+        
+        // ПРИОРИТЕТ 3: Игрок с мячом
+        Transform playerWithBall = FindPlayerWithBall();
+        if (playerWithBall != null)
         {
-            case BotRole.Attacker:
-                MakeAttackerDecision();
-                break;
-            case BotRole.Defender:
-                MakeDefenderDecision();
-                break;
-            case BotRole.Support:
-                MakeSupportDecision();
-                break;
+            currentTarget = playerWithBall;
+            supportingTeammate = null;
+            isOpenForPass = false;
+            Log("Цель: игрок с мячом");
+            return;
         }
+        
+        // ПРИОРИТЕТ 4: Поддержка союзника (ТОЛЬКО если нет врагов с мячом!)
+        AIPlayer teammate = GameObjectManager.Instance.FindTeammateWithBall(team, this);
+        if (teammate != null)
+        {
+            supportingTeammate = teammate;
+            currentTarget = null; // Движение через SupportTeammateWithBall
+            CheckIfOpenForPass();
+            Log($"Поддерживаю союзника {teammate.name}");
+            return;
+        }
+        
+        // Нет целей - сбрасываем всё
+        supportingTeammate = null;
+        isOpenForPass = false;
+        currentTarget = null;
+        Log("Нет целей");
     }
 
     void MakeAttackerDecision()
@@ -359,10 +578,10 @@ public class AIPlayer : MonoBehaviour
 
     void MakeDefenderDecision()
     {
-        // 1. Проверяем, не слишком ли далеко мы от ворот
+        // УПРОЩЕННАЯ ЛОГИКА: Defender просто не уходит далеко от ворот
         float distanceFromHome = Vector3.Distance(transform.position, homeGoalPosition);
         
-        // Если слишком далеко - возвращаемся к воротам (не преследуем цели)
+        // Если слишком далеко - возвращаемся к воротам
         if (distanceFromHome > defenderMaxDistance)
         {
             currentTarget = null; // Вернемся к воротам через MoveToTarget
@@ -370,73 +589,42 @@ public class AIPlayer : MonoBehaviour
             return;
         }
         
-        // 2. ПРЕДИКТИВНЫЙ ПЕРЕХВАТ: Ищем врагов с мячом, движущихся к нашим воротам
+        // Ищем ближайшего врага с мячом
         Transform enemyWithBall = FindNearestBotWithBall();
-        
         if (enemyWithBall != null)
         {
-            // Проверяем расстояние врага от наших ворот
-            float enemyDistanceFromGoal = Vector3.Distance(homeGoalPosition, enemyWithBall.position);
-            
-            // Если враг в зоне угрозы (в пределах defenderPredictionRange от ворот)
-            if (enemyDistanceFromGoal < defenderPredictionRange)
-            {
-                // ПРЕДИКТ: Рассчитываем точку перехвата
-                Vector3 interceptPoint = CalculateInterceptPoint(enemyWithBall);
-                
-                // Проверяем, не выходит ли точка перехвата за границу
-                float interceptDistance = Vector3.Distance(homeGoalPosition, interceptPoint);
-                
-                if (interceptDistance < defenderMaxDistance)
-                {
-                    currentTarget = enemyWithBall;
-                    Log($"Defender перехватывает врага на расстоянии {enemyDistanceFromGoal:F1}м от ворот");
-                    return;
-                }
-            }
+            currentTarget = enemyWithBall;
+            Log($"Defender преследует врага с мячом: {enemyWithBall.name}");
+            return;
         }
         
-        // 3. Ищем игрока с мячом (если он угроза)
+        // Ищем игрока с мячом
         Transform playerWithBall = FindPlayerWithBall();
         if (playerWithBall != null)
         {
-            float playerDistanceFromGoal = Vector3.Distance(homeGoalPosition, playerWithBall.position);
-            
-            if (playerDistanceFromGoal < defenderPredictionRange)
-            {
-                float interceptDistance = Vector3.Distance(homeGoalPosition, 
-                    CalculateInterceptPoint(playerWithBall));
-                
-                if (interceptDistance < defenderMaxDistance)
-                {
-                    currentTarget = playerWithBall;
-                    Log($"Defender перехватывает игрока на расстоянии {playerDistanceFromGoal:F1}м от ворот");
-                    return;
-                }
-            }
+            currentTarget = playerWithBall;
+            Log("Defender преследует игрока с мячом");
+            return;
         }
         
-        // 4. НОВОЕ: Если нет угрозы и cooldown прошел - подбираем свободный мяч в зоне защиты
+        // Ищем свободный мяч в зоне защиты
         if (Time.time >= lastThrowTime + pickupCooldown)
         {
-            Transform nearestQuaffle = FindNearestFreeQuaffle();
-            
-            if (nearestQuaffle != null)
+            Transform freeQuaffle = FindNearestFreeQuaffle();
+            if (freeQuaffle != null)
             {
-                // Проверяем, что мяч находится в нашей зоне защиты (100% от defenderMaxDistance)
-                float quaffleDistanceFromGoal = Vector3.Distance(homeGoalPosition, nearestQuaffle.position);
-                
-                if (quaffleDistanceFromGoal < defenderMaxDistance)
+                float quaffleDistFromGoal = Vector3.Distance(homeGoalPosition, freeQuaffle.position);
+                if (quaffleDistFromGoal < defenderMaxDistance)
                 {
-                    currentTarget = nearestQuaffle;
+                    currentTarget = freeQuaffle;
                     GenerateNewTargetOffset();
-                    Log($"Defender подбирает свободный мяч в зоне защиты (расстояние от ворот: {quaffleDistanceFromGoal:F1}м)");
+                    Log($"Defender подбирает свободный мяч в зоне защиты");
                     return;
                 }
             }
         }
         
-        // 5. Если нет угрозы - патрулируем около ворот
+        // Патрулируем около ворот
         currentTarget = null;
         Log("Defender патрулирует около ворот");
     }
@@ -548,11 +736,11 @@ public class AIPlayer : MonoBehaviour
         switch (role)
         {
             case BotRole.Attacker:
-                return 1.1f;    // ИЗМЕНЕНО: с 1.2x на 1.1x (чуть медленнее)
+                return 1.05f;    // ИЗМЕНЕНО: с 1.2x на 1.1x (чуть медленнее)
             case BotRole.Support:
                 return 1.0f;    // Средняя скорость
             case BotRole.Defender:
-                return 0.9f;    // Самый медленный
+                return 0.95f;    // Самый медленный
             default:
                 return 1.0f;
         }
@@ -564,7 +752,7 @@ public class AIPlayer : MonoBehaviour
         switch (role)
         {
             case BotRole.Attacker:
-                return 1.4f;    // Очень агрессивный (чаще меняет цель)
+                return 1.2f;    // Очень агрессивный (чаще меняет цель)
             case BotRole.Support:
                 return 1.0f;    // Средняя агрессивность
             case BotRole.Defender:
@@ -572,6 +760,134 @@ public class AIPlayer : MonoBehaviour
             default:
                 return 1.0f;
         }
+    }
+
+    #endregion
+
+    #region Team Play Methods
+
+    /// <summary>
+    /// Проверяет, находится ли бот под давлением врагов
+    /// </summary>
+    bool IsUnderPressure()
+    {
+        int enemyCount = 0;
+        var allBots = GameObjectManager.Instance.GetAllBots();
+        
+        foreach (var bot in allBots)
+        {
+            if (bot == null || bot.team == team) continue; // Пропускаем союзников
+            
+            float dist = Vector3.Distance(transform.position, bot.transform.position);
+            if (dist < pressureRadius)
+            {
+                enemyCount++;
+            }
+        }
+        
+        return enemyCount >= minEnemiesForPressure;
+    }
+
+    /// <summary>
+    /// Проверяет, открыт ли бот для получения паса
+    /// ПРОСТАЯ ВЕРСИЯ: просто проверяем врагов рядом
+    /// </summary>
+    void CheckIfOpenForPass()
+    {
+        if (supportingTeammate == null)
+        {
+            isOpenForPass = false;
+            return;
+        }
+        
+        // Просто считаем врагов в радиусе 6 метров
+        int nearbyEnemies = 0;
+        var allBots = GameObjectManager.Instance.GetAllBots();
+        
+        foreach (var bot in allBots)
+        {
+            if (bot == null || bot.team == team) continue; // Пропускаем союзников
+            
+            float dist = Vector3.Distance(transform.position, bot.transform.position);
+            if (dist < 6f) // Простая проверка
+            {
+                nearbyEnemies++;
+            }
+        }
+        
+        // Открыт если врагов не больше 1
+        isOpenForPass = (nearbyEnemies <= 1);
+    }
+
+    /// <summary>
+    /// Рассчитывает позицию для поддержки союзника с мячом
+    /// ИСПРАВЛЕНО: Убраны случайные отклонения - стабильная позиция
+    /// </summary>
+    Vector3 CalculateSupportPosition(AIPlayer teammate)
+    {
+        if (teammate == null) return transform.position;
+        
+        Vector3 teammatePos = teammate.transform.position;
+        Transform goalTransform = FindBestGoal();
+        
+        if (goalTransform == null) return teammatePos;
+        
+        Vector3 toGoal = (goalTransform.position - teammatePos).normalized;
+        
+        switch (role)
+        {
+            case BotRole.Attacker:
+                // Впереди союзника (ближе к воротам)
+                return teammatePos + toGoal * attackerOffsetForward;
+                
+            case BotRole.Support:
+                // Сбоку от союзника
+                Vector3 sideOffset = Vector3.Cross(toGoal, Vector3.up).normalized * supportOffsetSide;
+                return teammatePos + sideOffset;
+                
+            case BotRole.Defender:
+                // Сзади союзника (страховка)
+                return teammatePos - toGoal * defenderOffsetBack;
+                
+            default:
+                return teammatePos;
+        }
+    }
+
+    /// <summary>
+    /// Логика поддержки союзника с мячом (следование и позиционирование)
+    /// УЛУЧШЕННАЯ ВЕРСИЯ: боты отходят дальше, замедление только у цели
+    /// </summary>
+    void SupportTeammateWithBall()
+    {
+        if (supportingTeammate == null) return;
+        
+        Vector3 targetPosition = CalculateSupportPosition(supportingTeammate);
+        
+        // Направление к позиции поддержки
+        Vector3 direction = (targetPosition - transform.position).normalized;
+        float distance = Vector3.Distance(transform.position, targetPosition);
+        
+        // НОВОЕ: Замедляемся только очень близко к цели (в пределах arrivalThreshold)
+        float speedMultiplier = 1f;
+        if (distance < arrivalThreshold)
+        {
+            // Плавное замедление только в последних 3 метрах
+            speedMultiplier = Mathf.Clamp01(distance / arrivalThreshold);
+        }
+        
+        // Применяем движение с учетом роли
+        rb.linearVelocity = direction * moveSpeed * roleSpeedMultiplier * speedMultiplier;
+        
+        // Избегание других ботов
+        Vector3 avoidance = CalculateAvoidance();
+        if (avoidance.magnitude > 0.1f)
+        {
+            Vector3 avoidanceLimited = Vector3.ClampMagnitude(avoidance, 0.3f);
+            rb.linearVelocity += avoidanceLimited * moveSpeed * roleSpeedMultiplier;
+        }
+        
+        Log($"Поддерживаю {supportingTeammate.name}, дистанция: {distance:F1}м, открыт: {isOpenForPass}");
     }
 
     #endregion
@@ -725,7 +1041,8 @@ public class AIPlayer : MonoBehaviour
         AIPlayer targetBot = currentTarget.GetComponent<AIPlayer>();
 
         // Кража у другого бота (cooldown зависит от роли)
-        if (!hasBall && targetBot != null && targetBot.hasBall)
+        // ИСПРАВЛЕНО: Проверяем, что это ВРАГ, а не союзник!
+        if (!hasBall && targetBot != null && targetBot.hasBall && targetBot.team != team)
         {
             float sqrDist = (transform.position - currentTarget.position).sqrMagnitude;
             float roleCooldown = GetStealCooldownForRole(); // НОВОЕ: cooldown по роли
@@ -979,6 +1296,15 @@ public class AIPlayer : MonoBehaviour
     {
         if (!hasBall || currentQuaffle == null || teammate == null) return;
         
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Это союзник, а не враг?
+        if (teammate.team != team)
+        {
+            Log($"ОШИБКА! Попытка паса врагу {teammate.name} (его команда: {teammate.team}, моя: {team})");
+            // Не пасуем врагу - несем мяч к воротам
+            currentTarget = FindBestGoal();
+            return;
+        }
+        
         // Проверяем, что мяч действительно у нас
         if (!currentQuaffle.IsHeldBy(transform))
         {
@@ -1001,7 +1327,7 @@ public class AIPlayer : MonoBehaviour
         currentQuaffle.Throw(dir);
         lastThrowTime = Time.time;
         
-        Log($"Передал мяч союзнику {teammate.name}");
+        Log($"Передал мяч союзнику {teammate.name} (команда: {teammate.team})");
     }
 
     #endregion
@@ -1292,6 +1618,59 @@ public class AIPlayer : MonoBehaviour
             // 5. Линия от Defender к домашним воротам
             Gizmos.color = Color.white;
             Gizmos.DrawLine(transform.position, homeGoalPosition);
+        }
+        
+        // ========== НОВОЕ: ВИЗУАЛИЗАЦИЯ КОМАНДНОЙ ИГРЫ ==========
+        
+        // 1. Радиус давления (красная сфера если под давлением)
+        if (hasBall && isUnderPressure)
+        {
+            Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
+            Gizmos.DrawWireSphere(transform.position, pressureRadius);
+            
+            // Текст "UNDER PRESSURE"
+            Gizmos.color = Color.red;
+            Gizmos.DrawCube(transform.position + Vector3.up * 5f, Vector3.one * 0.5f);
+        }
+        
+        // 2. Линия к союзнику, которого поддерживаем (зеленая)
+        if (!hasBall && supportingTeammate != null)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawLine(transform.position, supportingTeammate.transform.position);
+            
+            // Целевая позиция поддержки (зеленая сфера)
+            Vector3 supportPos = CalculateSupportPosition(supportingTeammate);
+            Gizmos.color = new Color(0f, 1f, 0f, 0.5f);
+            Gizmos.DrawWireSphere(supportPos, 1.5f);
+            
+            // Линия к целевой позиции (пунктирная)
+            Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
+            Gizmos.DrawLine(transform.position, supportPos);
+        }
+        
+        // 3. Индикатор "открыт для паса" (зеленый куб над головой)
+        if (!hasBall && isOpenForPass)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawCube(transform.position + Vector3.up * 4f, Vector3.one * 0.8f);
+            
+            // Радиус "открытости"
+            Gizmos.color = new Color(0f, 1f, 0f, 0.2f);
+            Gizmos.DrawWireSphere(transform.position, openForPassRadius);
+        }
+        
+        // 4. Линия паса (если есть цель для паса) - для ВСЕХ ролей
+        if (hasBall && currentPassTarget != null)
+        {
+            bool blocked = IsPassBlocked(transform.position, currentPassTarget.transform.position);
+            Gizmos.color = blocked ? Color.red : Color.green;
+            Gizmos.DrawLine(transform.position, currentPassTarget.transform.position);
+            
+            // Целевая позиция паса
+            Vector3 passTarget = CalculatePassTarget(currentPassTarget);
+            Gizmos.color = blocked ? new Color(1f, 0f, 0f, 0.5f) : new Color(0f, 1f, 0f, 0.5f);
+            Gizmos.DrawWireSphere(passTarget, 1f);
         }
     }
 

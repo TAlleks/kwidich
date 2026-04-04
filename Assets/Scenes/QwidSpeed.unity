@@ -558,7 +558,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 1
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -568,7 +568,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -581,13 +581,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
@@ -1462,7 +1473,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &196234268
 Transform:
   m_ObjectHideFlags: 0
@@ -1492,7 +1503,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 0
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -1502,7 +1513,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -1515,13 +1526,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
@@ -3288,7 +3310,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &352728743
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3302,7 +3324,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 0
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -3312,7 +3334,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -3325,13 +3347,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
@@ -4795,7 +4828,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 2
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -4805,7 +4838,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -4818,13 +4851,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
@@ -9975,7 +10019,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 2
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -9985,7 +10029,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 0
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -9998,13 +10042,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
@@ -11734,7 +11789,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 0
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -11744,7 +11799,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -11757,13 +11812,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
@@ -15604,7 +15670,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.024
+  m_Radius: 0.034
   m_Center: {x: -0.00019742898, y: 0.019986456, z: 0.0000009342661}
 --- !u!114 &8649975352249936198
 MonoBehaviour:
@@ -16239,7 +16305,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   debugLogs: 0
-  showGizmos: 0
+  showGizmos: 1
   role: 1
   roleChangeInterval: 999999
   stopDistanceFromGoal: 5
@@ -16249,7 +16315,7 @@ MonoBehaviour:
   pushUpwardForce: 6
   canPushPlayer: 1
   team: 1
-  moveSpeed: 5
+  moveSpeed: 6
   turnSpeed: 4
   scoringDistance: 10
   minThrowDistance: 2
@@ -16262,13 +16328,24 @@ MonoBehaviour:
     m_Bits: 64
   targetOffsetRadius: 1.5
   pickupCooldown: 2
-  passRange: 30
-  passAccuracy: 0.9
+  passRange: 25
+  passAccuracy: 0.95
   passCheckRadius: 1.5
   passLeadTime: 0.8
   passBlockLayer:
     serializedVersion: 2
     m_Bits: 73
+  pressureRadius: 3
+  minEnemiesForPressure: 1
+  supportDistance: 12
+  openForPassRadius: 3
+  minPassDistance: 5
+  maxPassDistance: 25
+  attackerOffsetForward: 12
+  supportOffsetSide: 10
+  defenderOffsetBack: 8
+  arrivalThreshold: 3
+  isOpenForPass: 0
   celebrationDuration: 2.5
   celebrationHeight: 3
   celebrationSpinSpeed: 360
