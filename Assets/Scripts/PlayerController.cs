@@ -1255,6 +1255,13 @@ public class AIPlayer : MonoBehaviour
 
     void StealBallFromPlayer(IPlayerController player)
     {
+        // ПРОВЕРКА: Разрешена ли кража мяча у игрока?
+        if (!BallStealToggle.canStealFromPlayer)
+        {
+            Log("Кража мяча у игрока отключена (BallStealToggle)");
+            return;
+        }
+        
         Quaffle q = player.CurrentQuaffle;
         if (q != null)
         {
